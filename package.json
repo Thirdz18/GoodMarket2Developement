@@ -1,0 +1,8 @@
+{
+  "name": "goodmarket",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "GoodMarket Web3 Learn & Earn platform",
+  "private": true,
+  "scripts": {}
+}
