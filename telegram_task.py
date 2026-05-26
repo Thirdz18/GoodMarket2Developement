@@ -1,9 +1,6 @@
-"""Compatibility façade for legacy telegram_task package while migrating toward flat module layout."""
+"""Compatibility facade for legacy telegram_task package while migrating toward flat module layout."""
 
 from telegram_task.telegram_task import telegram_task_service, init_telegram_task
+from blockchain import telegram_blockchain_service
 
-__all__ = ['telegram_task_service', 'init_telegram_task']
-
-from telegram_task.blockchain import *  # noqa: F401,F403
-
-from telegram_task.telegram_task import *  # noqa: F401,F403
+__all__ = ['telegram_task_service', 'init_telegram_task', 'telegram_blockchain_service']

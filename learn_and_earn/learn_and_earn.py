@@ -7,7 +7,7 @@ import threading
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from flask import Blueprint, request, jsonify, render_template, session
-from .blockchain import learn_blockchain_service
+from blockchain import learn_blockchain_service
 # Contract integration removed - using direct private key disbursement only
 from supabase_client import get_supabase_client
 from config import (
