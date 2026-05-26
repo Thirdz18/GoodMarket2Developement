@@ -1,5 +1,5 @@
 import logging
-from minigames.blockchain import minigames_blockchain
+from minigames import minigames_blockchain
 
 logger = logging.getLogger(__name__)
 

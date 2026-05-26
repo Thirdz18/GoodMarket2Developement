@@ -570,7 +570,7 @@ class ReferralService:
             branch reverts the row back to 'pending_face_verification' so the
             next /fv-callback (or admin replay) can claim and retry it.
         """
-        from referral_program.blockchain import referral_blockchain_service
+        from referral_program import referral_blockchain_service
 
         try:
             referrer_result = referral_blockchain_service.disburse_referral_reward_sync(
@@ -666,7 +666,7 @@ class ReferralService:
         Called when admin triggers it or automatically when REFERRAL_KEY is topped up.
         Retries rewards with status 'pending' (awaiting face verification) and 'pending_disbursed' (awaiting balance).
         """
-        from referral_program.blockchain import referral_blockchain_service
+        from referral_program import referral_blockchain_service
 
         supabase = _get_supabase()
         if not supabase:

@@ -1310,7 +1310,7 @@ class AnalyticsService:
 
         try:
             from supabase_client import supabase, supabase_enabled
-            from learn_and_earn.learn_and_earn import quiz_manager
+            from learn_and_earn import quiz_manager
 
             if not supabase_enabled:
                 return {"learn_earn_quizzes": 0, "telegram_task_claims": 0, "total_rewards": 0}
