@@ -1,6 +1,3 @@
-"""Compatibility facade for legacy savings package while migrating toward flat module layout."""
+"""Backward-compatibility shim — savings module (all code consolidated)."""
 
-from routes import savings_bp
-from app import init_savings
-
-__all__ = ["savings_bp", "init_savings"]
+__all__ = []

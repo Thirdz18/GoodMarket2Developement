@@ -907,7 +907,7 @@ def get_twitter_task_transaction_history():
 
         logger.info(f"📋 Getting Twitter task history for {wallet[:8]}... (limit: {limit})")
 
-        from twitter_task import twitter_task_service
+        from twitter_task_service import twitter_task_service
 
         # Get transaction history
         history = twitter_task_service.get_transaction_history(wallet, limit)
@@ -943,7 +943,7 @@ def get_learn_earn_quiz_history():
 
         logger.info(f"📋 Getting ALL Learn & Earn history for {wallet[:8]}... (limit: {limit})")
 
-        from learn_and_earn import quiz_manager
+        from learn_and_earn_service import quiz_manager
 
         # Get quiz history - NO DATE FILTERING, ALL HISTORICAL LOGS
         history = quiz_manager.get_quiz_history(wallet, limit)
@@ -1022,8 +1022,8 @@ def get_unified_transaction_history():
 
         # 1. Daily Social Task (Twitter + Telegram)
         try:
-            from twitter_task import twitter_task_service
-            from telegram_task import telegram_task_service
+            from twitter_task_service import twitter_task_service
+            from telegram_task_service import telegram_task_service
             twitter_hist = twitter_task_service.get_transaction_history(wallet, 50)
             telegram_hist = telegram_task_service.get_transaction_history(wallet, 50)
             if twitter_hist.get('success') and twitter_hist.get('transactions'):
@@ -1057,7 +1057,7 @@ def get_unified_transaction_history():
 
         # 2. Learn & Earn
         try:
-            from learn_and_earn import quiz_manager
+            from learn_and_earn_service import quiz_manager
             quiz_hist = quiz_manager.get_quiz_history(wallet, 100)
             if isinstance(quiz_hist, list):
                 for rec in quiz_hist:
@@ -1126,7 +1126,7 @@ def get_unified_transaction_history():
 
         # 4. Community Stories
         try:
-            from community_stories import community_stories_service
+            from community_stories_service import community_stories_service
             cs_result = community_stories_service.get_user_submissions(wallet)
             for sub in (cs_result.get('submissions') or []):
                 status = sub.get('status', 'pending')
@@ -1170,7 +1170,7 @@ def get_unified_transaction_history():
 
         # 6. Reloadly Orders (mobile top-up, gift cards, utility bills)
         try:
-            from reloadly import get_user_orders
+            from reloadly_service import get_user_orders
             reloadly_orders = get_user_orders(wallet, 50)
             type_labels = {
                 'topup': ('📱', 'Mobile Top-Up (Reloadly)'),
@@ -1542,8 +1542,8 @@ def verify_identity():
         referral_warning = None
         if referral_code:
             try:
-                from referral_program import referral_service as ref_svc
-                from referral_program import referral_blockchain_service as ref_bc_svc
+                from referral_service import referral_service as ref_svc
+                from blockchain import referral_blockchain_service as ref_bc_svc
 
                 if not is_new_user:
                     # Existing user — referral cannot apply
@@ -1590,8 +1590,8 @@ def verify_identity():
             # previously recorded pending referral and disburse reward now.
             # Use atomic claim to prevent double-disbursement with fv-callback.
             try:
-                from referral_program import referral_service as ref_svc
-                from referral_program import referral_blockchain_service as ref_bc_svc
+                from referral_service import referral_service as ref_svc
+                from blockchain import referral_blockchain_service as ref_bc_svc
                 claimed = ref_svc.claim_pending_referral_for_disbursement(wallet_address)
                 if claimed.get('claimed'):
                     referral_row = claimed.get('referral', {})
@@ -1693,8 +1693,8 @@ def fv_callback():
         # Disburse any pending referral reward now that this user is face-verified.
         # Use atomic claim to prevent double-disbursement if verify-identity fires concurrently.
         try:
-            from referral_program import referral_service as ref_svc
-            from referral_program import referral_blockchain_service as ref_bc_svc
+            from referral_service import referral_service as ref_svc
+            from blockchain import referral_blockchain_service as ref_bc_svc
             claimed = ref_svc.claim_pending_referral_for_disbursement(wallet_address)
             if claimed.get('claimed'):
                 referral_row = claimed.get('referral', {})

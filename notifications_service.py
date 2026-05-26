@@ -347,8 +347,8 @@ class NotificationService:
     def check_learn_earn_availability(self, wallet_address: str) -> Dict:
         """Check if Learn & Earn quiz is available for notification"""
         try:
-            from learn_and_earn import quiz_manager
-            from learn_and_earn import learn_blockchain_service
+            from learn_and_earn_service import quiz_manager
+            from blockchain import learn_blockchain_service
             import asyncio
 
             # Check user eligibility

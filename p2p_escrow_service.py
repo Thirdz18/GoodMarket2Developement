@@ -36,7 +36,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from .contract import (
+from p2p_contract import (
     P2PEscrowContract,
     TRADE_STATUS_NAMES,
     _from_wei,

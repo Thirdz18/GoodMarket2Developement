@@ -609,7 +609,7 @@ class TelegramTaskService:
             logger.info(f"✅ Admin {admin_wallet[:8]}... approving submission {submission_id}")
 
             # Disburse reward
-            from telegram_task import telegram_blockchain_service
+            from blockchain import telegram_blockchain_service
 
             disbursement = telegram_blockchain_service.disburse_telegram_reward_sync(
                 wallet_address=wallet_address,

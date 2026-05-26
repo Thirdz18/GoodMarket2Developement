@@ -25,7 +25,7 @@ from routes import routes  # main Blueprint, already registered in main.py
 def init_telegram_task(app):
     """Initialize Telegram Task module"""
     try:
-        from telegram_task.telegram_task import TelegramTaskService
+        from telegram_task_service import TelegramTaskService
         from routes import routes as _routes_bp  # noqa: F811
         return True
     except Exception as e:
@@ -38,7 +38,7 @@ def init_telegram_task(app):
 def init_twitter_task(app):
     """Initialize Twitter Task module"""
     try:
-        from twitter_task.twitter_task import TwitterTaskService
+        from twitter_task_service import TwitterTaskService
         return True
     except Exception as e:
         logger.error(f"Twitter Task initialization failed: {e}")
@@ -50,7 +50,7 @@ def init_twitter_task(app):
 def init_discourse_task(app):
     """Initialize Discourse Task module"""
     try:
-        from discourse_task.discourse_task import DiscourseTaskService
+        from discourse_task_service import DiscourseTaskService
         return True
     except Exception as e:
         logger.error(f"Discourse Task initialization failed: {e}")
@@ -111,7 +111,7 @@ def init_reloadly(app):
     """Initialize Reloadly module"""
     try:
         from routes import reloadly_bp
-        from reloadly.client import reloadly_client
+        from reloadly_client import reloadly_client
 
         app.register_blueprint(reloadly_bp)
         if reloadly_client.is_initialized:
@@ -147,7 +147,7 @@ def init_community_stories(app):
 def init_learn_and_earn(app):
     """Initialize Learn & Earn system"""
     try:
-        from learn_and_earn.learn_and_earn import init_learn_and_earn as _original_init
+        from learn_and_earn_service import init_learn_and_earn as _original_init
         return _original_init(app)
     except Exception as e:
         logger.error(f"Learn & Earn initialization failed: {e}")
@@ -157,7 +157,7 @@ def init_learn_and_earn(app):
 def init_learn_earn_stream_scheduler(app):
     """Initialize Learn & Earn stream scheduler"""
     try:
-        from learn_and_earn.stream_scheduler import init_learn_earn_stream_scheduler as _original_init
+        from learn_earn_stream_scheduler import init_learn_earn_stream_scheduler as _original_init
         return _original_init(app)
     except Exception as e:
         logger.error(f"Learn & Earn stream scheduler initialization failed: {e}")
@@ -177,7 +177,7 @@ def init_p2p_trading(app):
         from routes import p2p_bp
         app.register_blueprint(p2p_bp, url_prefix="/p2p")
         if os.getenv("P2P_INDEXER_ENABLED", "").lower() in ("1", "true", "yes"):
-            from p2p_trading.indexer import get_indexer
+            from p2p_indexer import get_indexer
             get_indexer().start()
         return True
     except Exception as e:

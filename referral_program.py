@@ -1,8 +1,11 @@
-"""Compatibility facade for legacy referral_program package while migrating toward flat module layout."""
+"""Backward-compatibility shim — imports from the new flat-file locations."""
 
-from referral_program import referral_bp
+from flask import Blueprint
+
+referral_bp = Blueprint('referral_program', __name__)
+
+from referral_service import referral_service, ReferralService, BASE_URL
 from blockchain import referral_blockchain_service
-from referral_program.referral_service import referral_service, ReferralService, BASE_URL
 
 __all__ = [
     'referral_bp',

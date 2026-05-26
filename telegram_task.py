@@ -1,6 +1,6 @@
-"""Compatibility facade for legacy telegram_task package while migrating toward flat module layout."""
+"""Backward-compatibility shim — imports from the new flat-file locations."""
 
-from telegram_task.telegram_task import telegram_task_service, init_telegram_task
+from telegram_task_service import telegram_task_service, init_telegram_task, TelegramTaskService
 from blockchain import telegram_blockchain_service
 
-__all__ = ['telegram_task_service', 'init_telegram_task', 'telegram_blockchain_service']
+__all__ = ['telegram_task_service', 'init_telegram_task', 'TelegramTaskService', 'telegram_blockchain_service']
