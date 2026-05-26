@@ -1,7 +1,6 @@
-"""Compatibility facade for legacy reloadly package while migrating toward flat module layout."""
-from routes import reloadly_bp
-from reloadly.client import reloadly_client
-from reloadly.service import get_user_orders
-from app import init_reloadly
+"""Backward-compatibility shim — imports from the new flat-file locations."""
 
-__all__ = ["reloadly_bp", "reloadly_client", "init_reloadly", "get_user_orders"]
+from reloadly_client import reloadly_client
+from reloadly_service import get_user_orders
+
+__all__ = ['reloadly_client', 'get_user_orders']

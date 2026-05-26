@@ -34,7 +34,7 @@ from typing import Any, Dict, List, Optional
 
 from web3 import Web3
 
-from .contract import P2PEscrowContract, _from_wei, get_contract
+from p2p_contract import P2PEscrowContract, _from_wei, get_contract
 
 logger = logging.getLogger(__name__)
 

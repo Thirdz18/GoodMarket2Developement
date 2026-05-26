@@ -1503,7 +1503,7 @@ def learn_earn_dashboard():
         logger.error(f"❌ Error tracking analytics: {e}")
 
     from flask import make_response
-    from .nft_service import achievement_nft_service
+    from learn_earn_nft_service import achievement_nft_service
     resp = make_response(render_template(
         'learn_and_earn.html',
         wallet=wallet,
@@ -2847,7 +2847,7 @@ def check_deposit():
         cert_id = _uuid.uuid4().hex[:12]
         date_str = datetime.utcnow().strftime('%B %d, %Y')
 
-        from .sponsor_certificate import generate_certificate
+        from learn_earn_sponsor_certificate import generate_certificate
         cert_filename = generate_certificate(
             sponsor_name=sponsor_name,
             amount_gd=verified_amount,
@@ -3124,7 +3124,7 @@ def check_collaboration_deposit(submission_id):
 
         cert_id = uuid.uuid4().hex[:12]
         date_str = datetime.utcnow().strftime('%B %d, %Y')
-        from .sponsor_certificate import generate_certificate
+        from learn_earn_sponsor_certificate import generate_certificate
         cert_filename = generate_certificate(
             sponsor_name=partner_name,
             amount_gd=verified_amount,
@@ -3292,7 +3292,7 @@ def verify_sponsorship():
         cert_id = _uuid.uuid4().hex[:12]
         date_str = datetime.utcnow().strftime('%B %d, %Y')
 
-        from .sponsor_certificate import generate_certificate
+        from learn_earn_sponsor_certificate import generate_certificate
         cert_filename = generate_certificate(
             sponsor_name=sponsor_name,
             amount_gd=verified_amount,
@@ -3367,7 +3367,7 @@ def get_nft_balance(current_user):
 def mint_achievement_nft(current_user):
     """Mint an Achievement NFT for a completed quiz"""
     try:
-        from .nft_service import achievement_nft_service
+        from learn_earn_nft_service import achievement_nft_service
         data = request.get_json()
         quiz_id = data.get('quiz_id', '')
         score = int(data.get('score', 0))
@@ -3602,7 +3602,7 @@ def _execute_nft_purchase_job(job_id: str, token_id: int, g_tx_hash: str,
     Background thread: verifies G$ payment and transfers NFT.
     Updates nft_purchase_jobs table with status and result.
     """
-    from .nft_service import achievement_nft_service
+    from learn_earn_nft_service import achievement_nft_service
     from web3 import Web3
 
     supabase = get_supabase_client()
@@ -3842,7 +3842,7 @@ def get_nft_marketplace():
             logger.info("📦 Using cached NFT marketplace listings")
             return jsonify(_marketplace_cache["data"])
 
-        from .nft_service import achievement_nft_service
+        from learn_earn_nft_service import achievement_nft_service
 
         supabase = get_supabase_client()
         if not supabase:
@@ -3885,7 +3885,7 @@ def get_my_nfts(current_user):
             logger.info(f"📦 Using cached My NFTs for {current_user[:8]}...")
             return jsonify(cached[0])
 
-        from .nft_service import achievement_nft_service
+        from learn_earn_nft_service import achievement_nft_service
 
         supabase = get_supabase_client()
         if not supabase:
@@ -3947,7 +3947,7 @@ def get_my_nfts(current_user):
 def list_nft_for_sale(current_user):
     """List a user's NFT for sale on the marketplace"""
     try:
-        from .nft_service import achievement_nft_service
+        from learn_earn_nft_service import achievement_nft_service
 
         data = request.get_json(silent=True) or {}
         token_id = int(data.get('token_id', 0))
@@ -4029,7 +4029,7 @@ def list_nft_for_sale(current_user):
 def delist_nft(current_user):
     """Remove an NFT from the marketplace"""
     try:
-        from .nft_service import achievement_nft_service
+        from learn_earn_nft_service import achievement_nft_service
 
         data = request.get_json(silent=True) or {}
         token_id = int(data.get('token_id', 0))
@@ -4098,7 +4098,7 @@ def burn_nft(current_user):
     Reward = (score / total) * 1000 G$
     """
     try:
-        from .nft_service import achievement_nft_service
+        from learn_earn_nft_service import achievement_nft_service
 
         data = request.get_json(silent=True) or {}
         token_id = int(data.get('token_id', 0))
@@ -4225,7 +4225,7 @@ def burn_nft(current_user):
 def get_nft_operator_address():
     """Return the app wallet address so the frontend can build the approve() calldata"""
     try:
-        from .nft_service import achievement_nft_service
+        from learn_earn_nft_service import achievement_nft_service
         addr = achievement_nft_service.get_operator_address()
         if not addr:
             return jsonify({'success': False, 'error': 'Operator wallet not configured'}), 503
@@ -4238,7 +4238,7 @@ def get_nft_operator_address():
 @learn_earn_bp.route('/nft-listing-status', methods=['GET'])
 def get_nft_listing_status():
     try:
-        from .nft_service import achievement_nft_service
+        from learn_earn_nft_service import achievement_nft_service
 
         token_id = int(request.args.get('token_id', 0))
         if token_id <= 0:
@@ -4290,7 +4290,7 @@ def buy_nft(current_user):
     supabase = None
 
     try:
-        from .nft_service import achievement_nft_service
+        from learn_earn_nft_service import achievement_nft_service
         data = request.get_json()
         token_id  = int(data.get('token_id', 0))
         g_tx_hash = (data.get('g_tx_hash') or '').strip()

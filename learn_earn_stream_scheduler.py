@@ -138,7 +138,7 @@ class LearnEarnStreamScheduler:
 
     def run_once(self) -> Dict[str, Any]:
         """Single processing cycle. Safe to invoke ad-hoc."""
-        from .learn_and_earn import streaming_service
+        from learn_and_earn_service import streaming_service
 
         from datetime import datetime, timezone
         summary = streaming_service.process_streams_once(

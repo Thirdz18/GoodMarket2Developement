@@ -1,6 +1,6 @@
-"""Compatibility facade for legacy discourse_task package while migrating toward flat module layout."""
+"""Backward-compatibility shim — imports from the new flat-file locations."""
 
-from discourse_task.discourse_task import discourse_task_service, init_discourse_task
+from discourse_task_service import discourse_task_service, init_discourse_task, DiscourseTaskService
 from blockchain import discourse_blockchain_service
 
-__all__ = ['discourse_task_service', 'init_discourse_task', 'discourse_blockchain_service']
+__all__ = ['discourse_task_service', 'init_discourse_task', 'DiscourseTaskService', 'discourse_blockchain_service']
