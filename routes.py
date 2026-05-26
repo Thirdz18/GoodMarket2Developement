@@ -7846,7 +7846,7 @@ def admin_reset_voucher():
 def admin_treasury_status():
     """Return current Unified Treasury balance, stats, and recipient addresses."""
     try:
-        from unified_treasury import get_treasury_status
+        from unified_treasury_service import get_treasury_status
         status = get_treasury_status()
         return jsonify(status)
     except Exception as e:
@@ -7864,7 +7864,7 @@ def admin_treasury_distribute():
             "amount": <float G$> }
     """
     try:
-        from unified_treasury import distribute_funds, RECIPIENT_LABELS
+        from unified_treasury_service import distribute_funds, RECIPIENT_LABELS
         wallet = session.get("wallet")
         data   = request.get_json(force=True) or {}
 

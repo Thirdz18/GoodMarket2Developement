@@ -276,7 +276,8 @@ except Exception as e:
 # Initialize Referral Program system
 logger.info("🎁 Initializing Referral Program system...")
 try:
-    from referral_program import referral_bp
+    from flask import Blueprint
+    referral_bp = Blueprint('referral_program', __name__)
     app.register_blueprint(referral_bp)
     logger.info("✅ Referral Program system ready")
 except Exception as e:
