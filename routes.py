@@ -9881,3 +9881,2933 @@ def fuse_faucet_gas():
     except Exception as e:
         logger.error(f"fuse_faucet_gas error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+# =========================================================================
+# CONSOLIDATED MODULE ROUTES
+# =========================================================================
+# The following route definitions and Blueprints were originally in separate
+# module directories. They have been consolidated here for flat-file organization.
+# =========================================================================
+
+
+# =========================================================================
+# Jumble Routes (from jumble/routes.py)
+# =========================================================================
+
+import logging
+from flask import Blueprint, request, jsonify, render_template, session, redirect
+from jumble.jumble_service import jumble_service
+
+logger = logging.getLogger(__name__)
+
+jumble_bp = Blueprint('jumble', __name__, url_prefix='/jumble')
+
+
+@jumble_bp.route('/')
+def jumble_game():
+    wallet = session.get('wallet') or session.get('wallet_address')
+    verified = session.get('verified') or session.get('ubi_verified')
+    if not wallet or not verified:
+        return redirect('/')
+    return render_template('jumble_game.html', wallet=wallet)
+
+
+@jumble_bp.route('/api/get-word')
+def get_word():
+    wallet = session.get('wallet') or session.get('wallet_address')
+    if not wallet or not (session.get('verified') or session.get('ubi_verified')):
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    result = jumble_service.get_random_word(wallet)
+    return jsonify(result)
+
+
+@jumble_bp.route('/api/submit-answer', methods=['POST'])
+def submit_answer():
+    wallet = session.get('wallet') or session.get('wallet_address')
+    if not wallet or not (session.get('verified') or session.get('ubi_verified')):
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    data = request.json or {}
+    word_id = data.get('word_id')
+    answer = data.get('answer', '').strip()
+    if not word_id or not answer:
+        return jsonify({'success': False, 'error': 'Missing word_id or answer'}), 400
+    result = jumble_service.submit_answer(wallet, word_id, answer)
+    return jsonify(result)
+
+
+@jumble_bp.route('/api/daily-status')
+def daily_status():
+    wallet = session.get('wallet') or session.get('wallet_address')
+    if not wallet or not (session.get('verified') or session.get('ubi_verified')):
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    wins = jumble_service.get_daily_wins(wallet)
+    return jsonify({
+        'success': True,
+        'daily_wins': wins,
+        'max_wins': 10,
+        'remaining': max(0, 10 - wins),
+        'limit_reached': wins >= 10
+    })
+
+
+@jumble_bp.route('/api/leaderboard')
+def leaderboard():
+    result = jumble_service.get_leaderboard()
+    return jsonify(result)
+
+
+@jumble_bp.route('/api/get-review-contents')
+def get_review_contents():
+    wallet = session.get('wallet') or session.get('wallet_address')
+    if not wallet or not (session.get('verified') or session.get('ubi_verified')):
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    result = jumble_service.get_all_contents()
+    return jsonify(result)
+
+
+@jumble_bp.route('/admin/add-content', methods=['POST'])
+def admin_add_content():
+    wallet = session.get('wallet') or session.get('wallet_address')
+    if not wallet:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    data = request.json or {}
+    content_text = data.get('content_text', '').strip()
+    if not content_text or len(content_text) < 10:
+        return jsonify({'success': False, 'error': 'Content text is too short.'}), 400
+    result = jumble_service.add_content(content_text, added_by=wallet)
+    return jsonify(result)
+
+
+@jumble_bp.route('/admin/get-contents')
+def admin_get_contents():
+    wallet = session.get('wallet') or session.get('wallet_address')
+    if not wallet:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    result = jumble_service.get_all_contents()
+    return jsonify(result)
+
+
+@jumble_bp.route('/admin/delete-content/<int:content_id>', methods=['DELETE'])
+def admin_delete_content(content_id):
+    wallet = session.get('wallet') or session.get('wallet_address')
+    if not wallet:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    result = jumble_service.delete_content(content_id)
+    return jsonify(result)
+
+
+@jumble_bp.route('/admin/get-words/<int:content_id>')
+def admin_get_words(content_id):
+    wallet = session.get('wallet') or session.get('wallet_address')
+    if not wallet:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    try:
+        from supabase_client import get_supabase_client
+        sb = get_supabase_client()
+        res = sb.table('jumble_words').select('id, word, jumbled').eq('content_id', content_id).execute()
+        return jsonify({'success': True, 'words': res.data or []})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+# =========================================================================
+# Minigames Routes (from minigames/routes.py)
+# =========================================================================
+
+import logging
+import asyncio
+from flask import Blueprint, request, jsonify, render_template, session, redirect
+from minigames.minigames_manager import minigames_manager
+from maintenance_service import maintenance_service
+
+logger = logging.getLogger(__name__)
+
+minigames_bp = Blueprint('minigames', __name__, url_prefix='/minigames')
+
+@minigames_bp.route('/')
+def minigames_home():
+    """Minigames dashboard"""
+    wallet = session.get('wallet') or session.get('wallet_address')
+    verified = session.get('verified') or session.get('ubi_verified')
+
+    if not wallet or not verified:
+        return redirect('/')
+
+    # Check maintenance mode from database
+    maintenance_status = maintenance_service.get_maintenance_status('minigames')
+    if maintenance_status.get('is_maintenance', False):
+        maintenance_message = maintenance_status.get('message', 'Minigames are temporarily under maintenance. Please check back later.')
+        return render_template('minigames.html', wallet=wallet, maintenance_mode=True, maintenance_message=maintenance_message)
+
+    return render_template('minigames.html', wallet=wallet, maintenance_mode=False)
+
+@minigames_bp.route('/api/check-limit/<game_type>')
+def check_game_limit(game_type):
+    """Check if user can play a game"""
+    # Check maintenance mode from database
+    maintenance_status = maintenance_service.get_maintenance_status('minigames')
+    if maintenance_status.get('is_maintenance', False):
+        return jsonify({'error': maintenance_status.get('message', 'Minigames are temporarily under maintenance')}), 503
+
+    try:
+        wallet = session.get('wallet')
+        if not wallet or not session.get('verified'):
+            return jsonify({'error': 'Not authenticated'}), 401
+
+        # Removed coin_flip game type check
+        if game_type == 'coin_flip':
+            return jsonify({'success': False, 'error': 'Coin flip game is not available'}), 404
+
+        limit_check = minigames_manager.check_daily_limit(wallet, game_type)
+
+        return jsonify({
+            'success': True,
+            'limit_check': limit_check
+        })
+
+    except Exception as e:
+        logger.error(f"❌ Error checking game limit: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@minigames_bp.route('/api/start-game', methods=['POST'])
+def start_game():
+    """Start a new minigame session"""
+    # Check maintenance mode from database
+    maintenance_status = maintenance_service.get_maintenance_status('minigames')
+    if maintenance_status.get('is_maintenance', False):
+        return jsonify({'error': maintenance_status.get('message', 'Minigames are temporarily under maintenance')}), 503
+
+    try:
+        wallet_address = session.get('wallet_address')
+        if not wallet_address:
+            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+        data = request.json
+        game_type = data.get('game_type')
+        bet_amount = data.get('bet_amount', 0)
+
+        if not game_type:
+            return jsonify({'success': False, 'error': 'Game type required'}), 400
+
+        # Removed coin_flip game type check
+        if game_type == 'coin_flip':
+            return jsonify({'success': False, 'error': 'Coin flip game is not available'}), 404
+
+        result = minigames_manager.start_game_session(wallet_address, game_type, bet_amount)
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"❌ Error starting game: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@minigames_bp.route('/api/complete-game', methods=['POST'])
+def complete_game():
+    """Complete a game session"""
+    try:
+        wallet = session.get('wallet')
+        if not wallet or not session.get('verified'):
+            return jsonify({'error': 'Not authenticated'}), 401
+
+        data = request.get_json()
+        session_id = data.get('session_id')
+        score = data.get('score', 0)
+        game_data = data.get('game_data', {})
+
+        if not session_id:
+            return jsonify({'success': False, 'error': 'Session ID required'}), 400
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result = loop.run_until_complete(
+                minigames_manager.complete_game_session(session_id, score, game_data)
+            )
+        finally:
+            loop.close()
+
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"❌ Error completing game: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@minigames_bp.route('/api/user-stats')
+def get_user_stats():
+    """Get user game statistics with total virtual tokens across all games"""
+    try:
+        wallet = session.get('wallet')
+        if not wallet or not session.get('verified'):
+            logger.warning("⚠️ Unauthenticated request to /api/user-stats")
+            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+        logger.info(f"📊 Getting user stats for {wallet[:8]}...")
+        result = minigames_manager.get_user_stats(wallet)
+
+        # Always ensure we have a valid response structure
+        stats = result.get('stats', [])
+        logger.info(f"📊 Retrieved {len(stats)} game stats for {wallet[:8]}...")
+
+        total_tokens = sum(stat.get('virtual_tokens', 0) for stat in stats)
+
+        logger.info(f"💰 Total tokens across all games for {wallet[:8]}...: {total_tokens}")
+
+        # Log individual game tokens for debugging
+        if stats:
+            for stat in stats:
+                game_type = stat.get('game_type', 'unknown')
+                tokens = stat.get('virtual_tokens', 0)
+                plays = stat.get('total_plays', 0)
+                logger.info(f"   {game_type}: {tokens} tokens ({plays} plays)")
+        else:
+            logger.info(f"   No game stats found - user hasn't played any games yet")
+
+        # Always return success with proper data structure
+        response_data = {
+            'success': True,
+            'stats': stats,
+            'total_virtual_tokens': total_tokens
+        }
+
+        logger.info(f"✅ Returning response: {response_data}")
+
+        return jsonify(response_data)
+
+    except Exception as e:
+        logger.error(f"❌ Error getting user stats: {e}")
+        import traceback
+        logger.error(f"🔍 Traceback: {traceback.format_exc()}")
+        # Return error with proper structure
+        return jsonify({
+            'success': False,
+            'stats': [],
+            'total_virtual_tokens': 0,
+            'error': str(e)
+        }), 500
+
+@minigames_bp.route('/api/balance')
+def get_balance():
+    """Get user's Play & Earn balance"""
+    try:
+        wallet = session.get('wallet') or session.get('wallet_address')
+        if not wallet or not session.get('verified'):
+            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+        result = minigames_manager.get_deposit_balance(wallet)
+        min_withdrawal = minigames_manager.MIN_WITHDRAWAL
+        available = result.get('available_balance', 0)
+        return jsonify({
+            'success': True,
+            'available_balance': available,
+            'total_withdrawn': result.get('total_withdrawn', 0),
+            'min_withdrawal': min_withdrawal,
+            'can_withdraw': available >= min_withdrawal
+        })
+    except Exception as e:
+        logger.error(f"❌ Error getting balance: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@minigames_bp.route('/api/withdraw', methods=['POST'])
+def withdraw():
+    """Withdraw Play & Earn balance"""
+    try:
+        wallet = session.get('wallet') or session.get('wallet_address')
+        if not wallet or not session.get('verified'):
+            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result = loop.run_until_complete(
+                minigames_manager.withdraw_winnings(wallet)
+            )
+        finally:
+            loop.close()
+
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"❌ Error processing withdrawal: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@minigames_bp.route('/api/withdrawal-history')
+def withdrawal_history():
+    """Get user's withdrawal transaction history"""
+    try:
+        wallet = session.get('wallet') or session.get('wallet_address')
+        if not wallet or not session.get('verified'):
+            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+        from supabase_client import get_supabase_client
+        sb = get_supabase_client()
+        res = sb.table('minigame_withdrawals_log')\
+            .select('*')\
+            .eq('wallet_address', wallet)\
+            .order('withdrawal_date', desc=True)\
+            .limit(20)\
+            .execute()
+
+        return jsonify({'success': True, 'withdrawals': res.data or []})
+    except Exception as e:
+        logger.error(f"❌ Error fetching withdrawal history: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@minigames_bp.route('/api/quiz-questions')
+def get_quiz_questions():
+    """Get quiz questions"""
+    try:
+        wallet = session.get('wallet')
+        if not wallet or not session.get('verified'):
+            return jsonify({'error': 'Not authenticated'}), 401
+
+        difficulty = request.args.get('difficulty')
+        questions = minigames_manager.get_quiz_questions(difficulty)
+
+        return jsonify({
+            'success': True,
+            'questions': questions
+        })
+
+    except Exception as e:
+        logger.error(f"❌ Error getting quiz questions: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+
+# =========================================================================
+# Savings Routes (from savings/routes.py)
+# =========================================================================
+
+import os
+import logging
+from flask import Blueprint, render_template, session, redirect, jsonify, request
+import blockchain as savings_blockchain_svc
+
+logger = logging.getLogger(__name__)
+
+savings_bp = Blueprint("savings", __name__, url_prefix="/savings")
+
+SAVINGS_CONTRACT_ADDRESS = os.getenv('SAVINGS_CONTRACT_ADDRESS', '')
+GD_TOKEN_ADDRESS = os.getenv('GOODDOLLAR_CONTRACT_ADDRESS', '0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A')
+CELO_TOKEN_ADDRESS = os.getenv('CELO_TOKEN_ADDRESS', '0x471EcE3750Da237f93B8E339c536989b8978a438')
+CUSD_TOKEN_ADDRESS = os.getenv('CUSD_TOKEN_ADDRESS', '0x765DE816845861e75A25fCA122bb6898B8B1282a')
+USDT_TOKEN_ADDRESS = savings_blockchain_svc.USDT_TOKEN_ADDRESS
+CHAIN_ID = int(os.getenv('CHAIN_ID', 42220))
+LEGACY_V2_CONTRACT_ADDRESS = savings_blockchain_svc.LEGACY_V2_CONTRACT_ADDRESS
+LEGACY_V4_CONTRACT_ADDRESS = savings_blockchain_svc.LEGACY_V4_CONTRACT_ADDRESS
+
+
+def _require_auth():
+    wallet = session.get("wallet") or session.get("wallet_address")
+    verified = session.get("verified") or session.get("ubi_verified")
+    return wallet, verified
+
+
+@savings_bp.route("/")
+def savings_home():
+    wallet, verified = _require_auth()
+    if not wallet or not verified:
+        return redirect("/login")
+    wc_pid = os.environ.get('WALLETCONNECT_PROJECT_ID', '')
+    has_explicit_sidecar = bool(os.getenv("WC_SERVICE_URL"))
+    is_serverless_runtime = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+    wc_sidecar = has_explicit_sidecar or not is_serverless_runtime
+    return render_template(
+        "savings.html",
+        wallet=wallet,
+        savings_contract=SAVINGS_CONTRACT_ADDRESS,
+        gd_contract=GD_TOKEN_ADDRESS,
+        celo_contract=CELO_TOKEN_ADDRESS,
+        cusd_contract=CUSD_TOKEN_ADDRESS,
+        usdt_contract=USDT_TOKEN_ADDRESS,
+        legacy_v2_contract=LEGACY_V2_CONTRACT_ADDRESS,
+        legacy_v4_contract=LEGACY_V4_CONTRACT_ADDRESS,
+        chain_id=CHAIN_ID,
+        walletconnect_project_id=wc_pid,
+        walletconnect_sidecar_enabled=wc_sidecar,
+        login_method=session.get("login_method", "walletconnect"),
+    )
+
+
+@savings_bp.route("/api/stats")
+def api_stats():
+    stats = savings_blockchain_svc.get_contract_stats()
+    if not stats:
+        return jsonify({"error": "Could not fetch stats"}), 500
+    return jsonify(stats)
+
+
+@savings_bp.route("/api/deposits")
+def api_deposits():
+    wallet, verified = _require_auth()
+    if not wallet or not verified:
+        return jsonify({"error": "Unauthorized"}), 401
+    deposits = savings_blockchain_svc.get_user_deposits(wallet)
+    return jsonify({"deposits": deposits})
+
+
+@savings_bp.route("/api/allowance")
+def api_allowance():
+    """Backwards-compatible: G$ allowance only."""
+    wallet, verified = _require_auth()
+    if not wallet or not verified:
+        return jsonify({"error": "Unauthorized"}), 401
+    allowance = savings_blockchain_svc.get_gd_allowance(wallet)
+    return jsonify({"allowance": str(allowance)})
+
+
+@savings_bp.route("/api/balances")
+def api_balances():
+    """Per-token balances + allowances (G$, CELO, cUSD) for the connected wallet."""
+    wallet, verified = _require_auth()
+    if not wallet or not verified:
+        return jsonify({"error": "Unauthorized"}), 401
+    return jsonify({"balances": savings_blockchain_svc.get_user_token_balances(wallet)})
+
+
+@savings_bp.route("/api/token-allowance")
+def api_token_allowance():
+    """Allowance for a specific token (?token=0x...)."""
+    wallet, verified = _require_auth()
+    if not wallet or not verified:
+        return jsonify({"error": "Unauthorized"}), 401
+    token = request.args.get("token", "")
+    if not token:
+        return jsonify({"error": "Missing token query parameter"}), 400
+    return jsonify({"allowance": str(savings_blockchain_svc.get_token_allowance(wallet, token))})
+
+
+@savings_bp.route("/api/legacy-deposits")
+def api_legacy_deposits():
+    """Read-only list of v2 deposits for the connected wallet on the
+    frozen legacy contract. Returns an empty array if the user never
+    interacted with v2 — the frontend hides the panel in that case."""
+    wallet, verified = _require_auth()
+    if not wallet or not verified:
+        return jsonify({"error": "Unauthorized"}), 401
+    deposits = savings_blockchain_svc.get_user_legacy_deposits(wallet)
+    return jsonify({
+        "contract": LEGACY_V2_CONTRACT_ADDRESS,
+        "deposits": deposits,
+    })
+
+
+@savings_bp.route("/api/legacy-v4-deposits")
+def api_legacy_v4_deposits():
+    """Read-only list of active v4 slots for the connected wallet on the
+    pre-v5 multi-token savings contract. Same shape as `/api/deposits`,
+    so the frontend can reuse its row-rendering logic. Returns an empty
+    array if the user has no active v4 slots — the frontend hides the
+    legacy v4 panel in that case."""
+    wallet, verified = _require_auth()
+    if not wallet or not verified:
+        return jsonify({"error": "Unauthorized"}), 401
+    deposits = savings_blockchain_svc.get_user_legacy_v4_deposits(wallet)
+    return jsonify({
+        "contract": LEGACY_V4_CONTRACT_ADDRESS,
+        "deposits": deposits,
+    })
+
+
+# =========================================================================
+# Price Prediction Routes (from price_prediction/routes.py)
+# =========================================================================
+
+import logging
+from flask import Blueprint, request, jsonify, render_template, session, redirect
+from price_prediction.price_prediction_service import price_prediction_service
+from maintenance_service import maintenance_service
+
+logger = logging.getLogger(__name__)
+
+price_prediction_bp = Blueprint('price_prediction', __name__, url_prefix='/price-prediction')
+
+
+@price_prediction_bp.route('/')
+def price_prediction_home():
+    wallet = session.get('wallet') or session.get('wallet_address')
+    verified = session.get('verified') or session.get('ubi_verified')
+
+    if not wallet or not verified:
+        return redirect('/')
+
+    maintenance_status = maintenance_service.get_maintenance_status('minigames')
+    if maintenance_status.get('is_maintenance', False):
+        return redirect('/minigames/')
+
+    return render_template('price_prediction.html', wallet=wallet)
+
+
+@price_prediction_bp.route('/api/prices')
+def get_prices():
+    wallet = session.get('wallet') or session.get('wallet_address')
+    if not wallet:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    result = price_prediction_service.get_live_prices()
+    return jsonify(result)
+
+
+@price_prediction_bp.route('/api/status')
+def get_status():
+    """Combined endpoint: resolve + active + history in a single call."""
+    wallet = session.get('wallet') or session.get('wallet_address')
+    if not wallet:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+    resolved = price_prediction_service.check_and_resolve(wallet)
+    active = price_prediction_service.get_active_prediction(wallet)
+    history = price_prediction_service.get_prediction_history(wallet)
+
+    return jsonify({
+        'success': True,
+        'resolved': resolved.get('resolved', []),
+        'prediction': active.get('prediction'),
+        'predictions': history.get('predictions', [])
+    })
+
+
+@price_prediction_bp.route('/api/submit', methods=['POST'])
+def submit_prediction():
+    wallet = session.get('wallet') or session.get('wallet_address')
+    verified = session.get('verified') or session.get('ubi_verified')
+
+    if not wallet or not verified:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+    data = request.get_json()
+    crypto = data.get('crypto', '').strip()
+    direction = data.get('direction', '').strip()
+    timeframe_minutes = int(data.get('timeframe_minutes', 0))
+
+    if not crypto or not direction or not timeframe_minutes:
+        return jsonify({'success': False, 'error': 'Missing required fields.'}), 400
+
+    result = price_prediction_service.submit_prediction(wallet, crypto, direction, timeframe_minutes)
+    return jsonify(result)
+
+
+@price_prediction_bp.route('/api/active')
+def get_active():
+    wallet = session.get('wallet') or session.get('wallet_address')
+    if not wallet:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    result = price_prediction_service.get_active_prediction(wallet)
+    return jsonify(result)
+
+
+@price_prediction_bp.route('/api/history')
+def get_history():
+    wallet = session.get('wallet') or session.get('wallet_address')
+    if not wallet:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    result = price_prediction_service.get_prediction_history(wallet)
+    return jsonify(result)
+
+
+@price_prediction_bp.route('/api/live')
+def get_live_predictions():
+    wallet = session.get('wallet') or session.get('wallet_address')
+    if not wallet:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    result = price_prediction_service.get_all_active_predictions(current_wallet=wallet)
+    return jsonify(result)
+
+
+@price_prediction_bp.route('/api/check-resolve')
+def check_resolve():
+    wallet = session.get('wallet') or session.get('wallet_address')
+    if not wallet:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    result = price_prediction_service.check_and_resolve(wallet)
+    return jsonify(result)
+
+
+@price_prediction_bp.route('/api/sparklines')
+def get_sparklines():
+    wallet = session.get('wallet') or session.get('wallet_address')
+    if not wallet:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    result = price_prediction_service.get_sparklines()
+    return jsonify(result)
+
+
+# =========================================================================
+# Reloadly Routes (from reloadly/routes.py)
+# =========================================================================
+
+import logging
+import uuid
+from datetime import datetime
+from flask import Blueprint, request, jsonify, render_template, session, redirect
+
+from reloadly.client import reloadly_client
+from reloadly.service import (
+    usd_to_gd, get_gd_usd_price,
+    auto_detect_gd_payment, verify_gd_payment, refund_gd,
+    create_order_record, update_order_record,
+    get_order_record, get_user_orders, sanitize_error
+)
+
+logger = logging.getLogger(__name__)
+
+reloadly_bp = Blueprint("reloadly", __name__, url_prefix="/reloadly")
+
+
+def _require_auth():
+    wallet = session.get("wallet") or session.get("wallet_address")
+    verified = session.get("verified") or session.get("ubi_verified")
+    return wallet, verified
+
+
+# ─── PAGES ─────────────────────────────────────────────────────────────────────
+
+@reloadly_bp.route("/")
+def reloadly_home():
+    wallet, verified = _require_auth()
+    if not wallet or not verified:
+        return redirect("/")
+    import os
+    gd_price = get_gd_usd_price()
+    has_explicit_sidecar = bool(os.getenv("WC_SERVICE_URL"))
+    is_serverless_runtime = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+    wc_sidecar = has_explicit_sidecar or not is_serverless_runtime
+    return render_template(
+        "reloadly.html",
+        wallet=wallet,
+        gd_price=gd_price,
+        is_sandbox=reloadly_client.is_sandbox,
+        merchant_address=os.getenv("MERCHANT_ADDRESS", ""),
+        gd_contract=os.getenv("GOODDOLLAR_CONTRACT", "0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A"),
+        walletconnect_project_id=os.getenv("WALLETCONNECT_PROJECT_ID", ""),
+        walletconnect_sidecar_enabled=wc_sidecar,
+        login_method=session.get("login_method", "walletconnect"),
+    )
+
+
+@reloadly_bp.route("/api/countries")
+def api_countries():
+    wallet, verified = _require_auth()
+    if not wallet:
+        return jsonify({"error": "Not authenticated"}), 401
+    try:
+        countries = reloadly_client.get_countries()
+        return jsonify({"success": True, "countries": countries})
+    except Exception as e:
+        return jsonify({"success": False, "error": sanitize_error(e)}), 500
+
+
+@reloadly_bp.route("/api/gd-price")
+def api_gd_price():
+    """Return current live G$ price from CoinGecko (no auth required)."""
+    price = get_gd_usd_price()
+    return jsonify({"success": True, "gd_usd_price": price, "gd_per_usd": round(1 / price) if price else 0})
+
+
+# ─── TOP-UP ─────────────────────────────────────────────────────────────────────
+
+@reloadly_bp.route("/api/topup/operators")
+def api_topup_operators():
+    wallet, verified = _require_auth()
+    if not wallet:
+        return jsonify({"error": "Not authenticated"}), 401
+    country = request.args.get("country", "PH")
+    try:
+        operators = reloadly_client.get_topup_operators(country)
+        gd_price = get_gd_usd_price()
+        for op in operators:
+            # fixedAmounts are in USD (senderCurrencyCode) — convert directly to G$
+            fixed_amounts = op.get("fixedAmounts", [])  # USD
+            if fixed_amounts:
+                op["gd_amounts"] = [round(a / gd_price) for a in fixed_amounts]
+            # minAmount / maxAmount are also in USD
+            min_amt = op.get("minAmount")
+            max_amt = op.get("maxAmount")
+            if min_amt is not None:
+                op["gd_min"] = round(min_amt / gd_price)
+            if max_amt is not None:
+                op["gd_max"] = round(max_amt / gd_price)
+        return jsonify({"success": True, "operators": operators, "gd_price": gd_price})
+    except Exception as e:
+        logger.error(f"api_topup_operators error: {e}")
+        return jsonify({"success": False, "error": sanitize_error(e)}), 500
+
+
+@reloadly_bp.route("/api/topup/detect-operator")
+def api_detect_operator():
+    wallet, verified = _require_auth()
+    if not wallet:
+        return jsonify({"error": "Not authenticated"}), 401
+    phone = request.args.get("phone", "")
+    country = request.args.get("country", "PH")
+    if not phone:
+        return jsonify({"success": False, "error": "phone required"}), 400
+    try:
+        result = reloadly_client.auto_detect_operator(phone, country)
+        return jsonify({"success": True, "operator": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": sanitize_error(e)}), 500
+
+
+# ─── GIFT CARDS ─────────────────────────────────────────────────────────────────
+
+# Keywords used to identify virtual prepaid money-card products
+# (Visa / Mastercard / American Express virtual/prepaid cards) across
+# Reloadly's product catalog. Matched case-insensitively against product
+# name and category name.
+VIRTUAL_CARD_KEYWORDS = (
+    "visa",
+    "mastercard",
+    "master card",
+    "amex",
+    "american express",
+    "money card",
+    "prepaid card",
+)
+
+
+def _is_virtual_card_product(product: dict) -> bool:
+    """Return True if a Reloadly gift-card product is a virtual prepaid money card."""
+    name = (product.get("productName") or "").lower()
+    category = ""
+    cat_obj = product.get("category")
+    if isinstance(cat_obj, dict):
+        category = (cat_obj.get("name") or "").lower()
+    elif isinstance(cat_obj, str):
+        category = cat_obj.lower()
+    brand = ""
+    brand_obj = product.get("brand")
+    if isinstance(brand_obj, dict):
+        brand = (brand_obj.get("brandName") or "").lower()
+    haystack = f"{name} {category} {brand}"
+    return any(kw in haystack for kw in VIRTUAL_CARD_KEYWORDS)
+
+
+@reloadly_bp.route("/api/virtual-cards")
+def api_virtual_cards():
+    """
+    Return Reloadly gift-card products that are virtual prepaid money cards
+    (Visa / Mastercard / Amex). These can be funded with G$ and produce a
+    card number + CVV/PIN + expiry that the user can spend at any online
+    merchant that accepts the underlying network.
+    """
+    wallet, _verified = _require_auth()
+    if not wallet:
+        return jsonify({"error": "Not authenticated"}), 401
+    country = request.args.get("country", None)
+    try:
+        # Walk all pages (up to a safe cap) so we capture virtual cards that
+        # may not appear on the first page of the broader gift-card catalog.
+        matched: list = []
+        seen_ids: set = set()
+        page = 1
+        MAX_PAGES = 10  # safety cap
+        while page <= MAX_PAGES:
+            data = reloadly_client.get_giftcard_products(
+                country_code=country, page=page, size=50
+            )
+            products = data.get("content", data) if isinstance(data, dict) else data
+            if not products:
+                break
+            for p in products:
+                pid = p.get("productId") or p.get("id")
+                if pid in seen_ids:
+                    continue
+                seen_ids.add(pid)
+                if _is_virtual_card_product(p):
+                    matched.append(p)
+            # Stop early if Reloadly paging metadata says we're done.
+            if isinstance(data, dict):
+                total_pages = data.get("totalPages")
+                if total_pages is not None and page >= int(total_pages):
+                    break
+            page += 1
+
+        gd_price = get_gd_usd_price()
+        for p in matched:
+            fixed = p.get("fixedRecipientDenominations", [])
+            if fixed:
+                p["gd_fixed"] = [round(d / gd_price, 0) for d in fixed]
+            min_r = p.get("minRecipientDenomination")
+            if min_r:
+                p["gd_min"] = round(min_r / gd_price, 0)
+            max_r = p.get("maxRecipientDenomination")
+            if max_r:
+                p["gd_max"] = round(max_r / gd_price, 0)
+
+        return jsonify({
+            "success": True,
+            "products": matched,
+            "gd_price": gd_price,
+            "count": len(matched),
+        })
+    except Exception as e:
+        logger.error(f"api_virtual_cards error: {e}")
+        return jsonify({"success": False, "error": sanitize_error(e)}), 500
+
+
+@reloadly_bp.route("/api/giftcards")
+def api_giftcards():
+    wallet, verified = _require_auth()
+    if not wallet:
+        return jsonify({"error": "Not authenticated"}), 401
+    country = request.args.get("country", None)
+    page = int(request.args.get("page", 1))
+    size = int(request.args.get("size", 20))
+    try:
+        data = reloadly_client.get_giftcard_products(country_code=country, page=page, size=size)
+        gd_price = get_gd_usd_price()
+        products = data.get("content", data) if isinstance(data, dict) else data
+        for p in products:
+            min_d = p.get("minRecipientDenomination") or p.get("senderCurrencyCode") and None
+            fixed = p.get("fixedRecipientDenominations", [])
+            if fixed:
+                p["gd_fixed"] = [round(d / gd_price, 0) for d in fixed]
+            min_r = p.get("minRecipientDenomination")
+            if min_r:
+                p["gd_min"] = round(min_r / gd_price, 0)
+            max_r = p.get("maxRecipientDenomination")
+            if max_r:
+                p["gd_max"] = round(max_r / gd_price, 0)
+        return jsonify({"success": True, "products": products, "gd_price": gd_price})
+    except Exception as e:
+        logger.error(f"api_giftcards error: {e}")
+        return jsonify({"success": False, "error": sanitize_error(e)}), 500
+
+
+# ─── UTILITY ────────────────────────────────────────────────────────────────────
+
+@reloadly_bp.route("/api/utility/billers")
+def api_utility_billers():
+    wallet, verified = _require_auth()
+    if not wallet:
+        return jsonify({"error": "Not authenticated"}), 401
+    country = request.args.get("country", None)
+    try:
+        billers = reloadly_client.get_utility_billers(country_code=country)
+        return jsonify({"success": True, "billers": billers})
+    except Exception as e:
+        logger.error(f"api_utility_billers error: {e}")
+        return jsonify({"success": False, "error": sanitize_error(e)}), 500
+
+
+# ─── ORDERS ─────────────────────────────────────────────────────────────────────
+
+@reloadly_bp.route("/api/order/prepare", methods=["POST"])
+def api_prepare_order():
+    """
+    Step 1: Create a pending order record and return the G$ amount to pay.
+    Frontend then triggers WalletConnect payment to MERCHANT_ADDRESS.
+    """
+    wallet, verified = _require_auth()
+    if not wallet or not verified:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    data = request.json or {}
+    order_type = data.get("order_type")
+    usd_amount = data.get("usd_amount")
+
+    if not order_type or not usd_amount:
+        return jsonify({"success": False, "error": "order_type and usd_amount required"}), 400
+
+    if order_type not in ("topup", "giftcard", "utility"):
+        return jsonify({"success": False, "error": "Invalid order_type"}), 400
+
+    try:
+        gd_amount = usd_to_gd(float(usd_amount))
+        order_id = str(uuid.uuid4())
+
+        order_data = {
+            "id": order_id,
+            "wallet_address": wallet.lower(),
+            "order_type": order_type,
+            "status": "pending_payment",
+            "usd_amount": float(usd_amount),
+            "gd_amount": gd_amount,
+            "gd_usd_price": get_gd_usd_price(),
+            "order_payload": data.get("payload", {}),
+            "created_at": datetime.utcnow().isoformat()
+        }
+
+        result = create_order_record(order_data)
+        if not result["success"]:
+            return jsonify({"success": False, "error": result["error"]}), 500
+
+        return jsonify({
+            "success": True,
+            "order_id": order_id,
+            "gd_amount": gd_amount,
+            "usd_amount": float(usd_amount),
+            "gd_usd_price": get_gd_usd_price()
+        })
+
+    except Exception as e:
+        logger.error(f"api_prepare_order error: {e}")
+        return jsonify({"success": False, "error": sanitize_error(e)}), 500
+
+
+@reloadly_bp.route("/api/order/confirm", methods=["POST"])
+def api_confirm_order():
+    """
+    Step 2: User has paid G$ — provide tx_hash to verify and process.
+    Verifies blockchain payment → calls Reloadly → refunds on failure.
+    """
+    wallet, verified = _require_auth()
+    if not wallet or not verified:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    data = request.json or {}
+    order_id = data.get("order_id")
+    tx_hash = data.get("tx_hash")
+
+    if not order_id or not tx_hash:
+        return jsonify({"success": False, "error": "order_id and tx_hash required"}), 400
+
+    order_res = get_order_record(order_id)
+    if not order_res["success"]:
+        return jsonify({"success": False, "error": "Order not found"}), 404
+
+    order = order_res["order"]
+
+    if order["wallet_address"].lower() != wallet.lower():
+        return jsonify({"success": False, "error": "Order does not belong to you"}), 403
+
+    if order["status"] != "pending_payment":
+        return jsonify({"success": False, "error": f"Order status is '{order['status']}', cannot confirm"}), 400
+
+    # Mark as verifying
+    update_order_record(order_id, {"status": "verifying", "tx_hash": tx_hash})
+
+    # Verify blockchain payment
+    verify = verify_gd_payment(wallet, order["gd_amount"], tx_hash)
+    if not verify["success"]:
+        update_order_record(order_id, {
+            "status": "payment_failed",
+            "failure_reason": verify.get("error", "Payment verification failed")
+        })
+        return jsonify({"success": False, "error": verify.get("error", "Payment verification failed")}), 400
+
+    # Payment verified — process with Reloadly
+    update_order_record(order_id, {"status": "processing"})
+
+    try:
+        payload = order.get("order_payload", {})
+        order_type = order["order_type"]
+        reloadly_result = None
+
+        if order_type == "topup":
+            reloadly_result = reloadly_client.send_topup(
+                operator_id=payload["operator_id"],
+                amount=payload["amount"],
+                phone_number=payload["phone"],
+                country_code=payload["country"],
+                custom_identifier=order_id
+            )
+        elif order_type == "giftcard":
+            reloadly_result = reloadly_client.order_giftcard(
+                product_id=payload["product_id"],
+                quantity=payload.get("quantity", 1),
+                unit_price=payload["unit_price"],
+                custom_identifier=order_id
+            )
+        elif order_type == "utility":
+            reloadly_result = reloadly_client.pay_utility(
+                biller_id=payload["biller_id"],
+                amount=payload["amount"],
+                subscriber_id=payload["subscriber_id"],
+                custom_identifier=order_id
+            )
+
+        if reloadly_result:
+            update_order_record(order_id, {
+                "status": "completed",
+                "reloadly_transaction_id": str(reloadly_result.get("transactionId") or reloadly_result.get("id") or ""),
+                "reloadly_response": reloadly_result,
+                "completed_at": datetime.utcnow().isoformat()
+            })
+            return jsonify({
+                "success": True,
+                "order_id": order_id,
+                "status": "completed",
+                "result": reloadly_result
+            })
+        else:
+            raise Exception("No response from Reloadly")
+
+    except Exception as e:
+        logger.error(f"❌ Reloadly fulfillment failed for order {order_id}: {e}")
+
+        # Attempt refund
+        refund_result = refund_gd(wallet, order["gd_amount"], order_id)
+        refund_status = "refunded" if refund_result["success"] else "refund_failed"
+        update_order_record(order_id, {
+            "status": refund_status,
+            "failure_reason": sanitize_error(e),
+            "refund_tx_hash": refund_result.get("tx_hash"),
+            "refund_error": refund_result.get("error") if not refund_result["success"] else None
+        })
+
+        msg = f"Reloadly fulfillment failed. "
+        if refund_result["success"]:
+            msg += f"Your {order['gd_amount']} G$ has been refunded. Tx: {refund_result['tx_hash']}"
+        else:
+            msg += f"Refund also failed — please contact support. Order: {order_id}"
+
+        return jsonify({
+            "success": False,
+            "error": msg,
+            "order_id": order_id,
+            "refunded": refund_result["success"],
+            "refund_tx": refund_result.get("tx_hash")
+        }), 500
+
+
+@reloadly_bp.route("/api/order/detect-payment", methods=["POST"])
+def api_detect_payment():
+    """
+    Auto-detect: scan recent Celo blocks for a G$ transfer matching the order.
+    Frontend calls this repeatedly (poll) after initiating wallet payment.
+    Returns {found: true, tx_hash} when detected, then processes the order.
+    """
+    wallet, verified = _require_auth()
+    if not wallet or not verified:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    data = request.json or {}
+    order_id = data.get("order_id")
+    if not order_id:
+        return jsonify({"success": False, "error": "order_id required"}), 400
+
+    order_res = get_order_record(order_id)
+    if not order_res["success"]:
+        return jsonify({"success": False, "error": "Order not found"}), 404
+
+    order = order_res["order"]
+    if order["wallet_address"].lower() != wallet.lower():
+        return jsonify({"success": False, "error": "Unauthorized"}), 403
+
+    # If already processed, return current status
+    if order["status"] not in ("pending_payment", "verifying"):
+        return jsonify({
+            "success": True,
+            "found": True,
+            "already_processed": True,
+            "status": order["status"],
+            "order_id": order_id
+        })
+
+    # Mark as verifying to prevent duplicate processing
+    if order["status"] == "pending_payment":
+        update_order_record(order_id, {"status": "verifying"})
+
+    # If a specific tx_hash was provided, try verifying it directly first
+    provided_tx = data.get("tx_hash")
+    if provided_tx:
+        verify = verify_gd_payment(wallet, float(order["gd_amount"]), provided_tx)
+        if verify.get("success"):
+            detect = {"verified": True, "tx_hash": provided_tx, "amount_gd": verify.get("amount_gd")}
+        else:
+            err = verify.get("error", "")
+            if verify.get("reverted"):
+                # Definitively failed on-chain — stop immediately, no refund needed
+                update_order_record(order_id, {
+                    "status": "payment_failed",
+                    "tx_hash": provided_tx,
+                    "failure_reason": err
+                })
+                return jsonify({
+                    "success": False,
+                    "found": True,
+                    "status": "payment_failed",
+                    "error": "❌ " + err + " — No G$ was deducted."
+                }), 400
+            # Still pending or not found — fall through to auto-detect
+            detect = auto_detect_gd_payment(wallet, float(order["gd_amount"]))
+    else:
+        # Scan blockchain for matching G$ transfer
+        detect = auto_detect_gd_payment(wallet, float(order["gd_amount"]))
+
+    if not detect.get("verified"):
+        # Not found yet — reset to pending_payment so frontend can poll again
+        update_order_record(order_id, {"status": "pending_payment"})
+        return jsonify({
+            "success": True,
+            "found": False,
+            "message": detect.get("error", "Payment not detected yet — still watching blockchain...")
+        })
+
+    # Payment found! Save tx_hash and process
+    tx_hash = detect["tx_hash"]
+    update_order_record(order_id, {"tx_hash": tx_hash, "status": "processing"})
+
+    try:
+        payload = order.get("order_payload", {})
+        order_type = order["order_type"]
+        reloadly_result = None
+
+        if order_type == "topup":
+            reloadly_result = reloadly_client.send_topup(
+                operator_id=payload["operator_id"],
+                amount=payload["amount"],
+                phone_number=payload["phone"],
+                country_code=payload["country"],
+                custom_identifier=order_id
+            )
+        elif order_type == "giftcard":
+            reloadly_result = reloadly_client.order_giftcard(
+                product_id=payload["product_id"],
+                quantity=payload.get("quantity", 1),
+                unit_price=payload["unit_price"],
+                custom_identifier=order_id
+            )
+        elif order_type == "utility":
+            reloadly_result = reloadly_client.pay_utility(
+                biller_id=payload["biller_id"],
+                amount=payload["amount"],
+                subscriber_id=payload["subscriber_id"],
+                custom_identifier=order_id
+            )
+
+        if reloadly_result:
+            update_order_record(order_id, {
+                "status": "completed",
+                "reloadly_transaction_id": str(reloadly_result.get("transactionId") or reloadly_result.get("id") or ""),
+                "reloadly_response": reloadly_result,
+                "completed_at": datetime.utcnow().isoformat()
+            })
+            return jsonify({
+                "success": True,
+                "found": True,
+                "status": "completed",
+                "tx_hash": tx_hash,
+                "order_id": order_id
+            })
+        else:
+            raise Exception("No response from Reloadly")
+
+    except Exception as e:
+        logger.error(f"❌ Auto-detect Reloadly fulfillment failed for {order_id}: {e}")
+        refund_result = refund_gd(wallet, order["gd_amount"], order_id)
+        refund_status = "refunded" if refund_result["success"] else "refund_failed"
+        update_order_record(order_id, {
+            "status": refund_status,
+            "failure_reason": sanitize_error(e),
+            "refund_tx_hash": refund_result.get("tx_hash"),
+            "refund_error": refund_result.get("error") if not refund_result["success"] else None
+        })
+        msg = f"Fulfillment failed. "
+        if refund_result["success"]:
+            msg += f"Your {order['gd_amount']} G$ has been refunded."
+        else:
+            msg += f"Refund failed — contact support. Order: {order_id}"
+        return jsonify({
+            "success": False,
+            "found": True,
+            "tx_hash": tx_hash,
+            "error": msg,
+            "refunded": refund_result["success"],
+            "refund_tx": refund_result.get("tx_hash")
+        }), 500
+
+
+@reloadly_bp.route("/api/order/<order_id>")
+def api_get_order(order_id):
+    wallet, verified = _require_auth()
+    if not wallet:
+        return jsonify({"error": "Not authenticated"}), 401
+    res = get_order_record(order_id)
+    if not res["success"]:
+        return jsonify({"success": False, "error": "Order not found"}), 404
+    order = res["order"]
+    if order["wallet_address"].lower() != wallet.lower():
+        return jsonify({"error": "Unauthorized"}), 403
+    return jsonify({"success": True, "order": order})
+
+
+@reloadly_bp.route("/api/order/<order_id>/card-details")
+def api_get_card_details(order_id):
+    """
+    Return the virtual card details (card number, CVV/PIN, expiry) for a
+    completed gift-card order owned by the authenticated wallet.
+
+    Only available after the order is 'completed' and only to the wallet
+    that placed the order. Card details are fetched live from Reloadly and
+    NOT persisted — this endpoint acts as a thin proxy.
+    """
+    wallet, _verified = _require_auth()
+    if not wallet:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    res = get_order_record(order_id)
+    if not res["success"]:
+        return jsonify({"success": False, "error": "Order not found"}), 404
+
+    order = res["order"]
+    if order["wallet_address"].lower() != wallet.lower():
+        return jsonify({"success": False, "error": "Unauthorized"}), 403
+
+    if order.get("order_type") != "giftcard":
+        return jsonify({"success": False, "error": "Order is not a gift/virtual card"}), 400
+
+    if order.get("status") != "completed":
+        return jsonify({
+            "success": False,
+            "error": f"Order status is '{order.get('status')}', card details not yet available",
+        }), 400
+
+    tx_id = order.get("reloadly_transaction_id")
+    if not tx_id:
+        return jsonify({"success": False, "error": "Missing Reloadly transaction id"}), 400
+
+    try:
+        cards = reloadly_client.get_giftcard_redeem_code(tx_id)
+        return jsonify({"success": True, "cards": cards, "order_id": order_id})
+    except Exception as e:
+        logger.error(f"api_get_card_details error for {order_id}: {e}")
+        return jsonify({"success": False, "error": sanitize_error(e)}), 500
+
+
+@reloadly_bp.route("/api/orders")
+def api_my_orders():
+    wallet, verified = _require_auth()
+    if not wallet:
+        return jsonify({"error": "Not authenticated"}), 401
+    limit = int(request.args.get("limit", 20))
+    orders = get_user_orders(wallet, limit=limit)
+    return jsonify({"success": True, "orders": orders})
+
+
+@reloadly_bp.route("/api/order/<order_id>/cancel", methods=["POST"])
+def api_cancel_order(order_id):
+    """Mark a pending order as expired or cancelled (only if no payment was made)."""
+    wallet, verified = _require_auth()
+    if not wallet:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    order_res = get_order_record(order_id)
+    if not order_res["success"]:
+        return jsonify({"success": False, "error": "Order not found"}), 404
+
+    order = order_res["order"]
+    if order["wallet_address"].lower() != wallet.lower():
+        return jsonify({"success": False, "error": "Unauthorized"}), 403
+
+    # Only cancel if no payment has been detected/processed
+    cancellable = {"pending_payment", "verifying"}
+    if order["status"] not in cancellable:
+        return jsonify({"success": False, "error": f"Cannot cancel order with status '{order['status']}'"}), 400
+
+    data = request.json or {}
+    new_status = data.get("status", "cancelled")
+    if new_status not in ("cancelled", "expired"):
+        new_status = "cancelled"
+
+    update_order_record(order_id, {"status": new_status})
+    return jsonify({"success": True, "status": new_status})
+
+
+# =========================================================================
+# Community Stories Routes (from community_stories/routes.py)
+# =========================================================================
+
+from flask import Blueprint, request, jsonify, session, render_template, redirect
+import logging
+import asyncio
+import time
+from community_stories.community_stories_service import community_stories_service
+from config import COMMUNITY_STORIES_CONFIG
+from supabase_client import get_supabase_client, safe_supabase_operation
+import os
+import base64
+import requests
+import uuid
+
+logger = logging.getLogger(__name__)
+
+community_stories_bp = Blueprint('community_stories', __name__)
+
+@community_stories_bp.route('/')
+def community_stories_page():
+    """Community Stories main page - Publicly accessible"""
+    wallet = session.get('wallet')
+    verified = session.get('verified')
+
+    # Allow both authenticated and guest users to view the page
+    return render_template('community_stories.html', 
+                         wallet=wallet if wallet and verified else None)
+
+@community_stories_bp.route('/api/config', methods=['GET'])
+def get_config():
+    """Get Community Stories configuration"""
+    try:
+        config = community_stories_service.get_config()
+        
+        # Get custom message from database
+        from supabase_client import get_supabase_client, safe_supabase_operation
+        supabase = get_supabase_client()
+        custom_message = COMMUNITY_STORIES_CONFIG['DESCRIPTION']  # Default fallback
+        
+        if supabase:
+            result = safe_supabase_operation(
+                lambda: supabase.table('maintenance_settings')\
+                    .select('custom_message')\
+                    .eq('feature_name', 'community_stories_message')\
+                    .execute(),
+                fallback_result=type('obj', (object,), {'data': []})(),
+                operation_name="get community stories custom message"
+            )
+            
+            if result.data and len(result.data) > 0 and result.data[0].get('custom_message'):
+                custom_message = result.data[0]['custom_message']
+                logger.info(f"✅ Using custom Community Stories message from database")
+        
+        return jsonify({
+            'success': True,
+            'config': {
+                'rewards': {
+                    'low': config['LOW_REWARD'],
+                    'high': config['HIGH_REWARD']
+                },
+                'requirements': {
+                    'mentions': config['REQUIRED_MENTIONS'],
+                    'min_video_duration': COMMUNITY_STORIES_CONFIG['MIN_VIDEO_DURATION']
+                },
+                'window': {
+                    'start_day': config['WINDOW_START_DAY'],
+                    'end_day': config['WINDOW_END_DAY']
+                },
+                'description': custom_message  # Use custom message from DB
+            }
+        })
+    except Exception as e:
+        logger.error(f"❌ Error getting config: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@community_stories_bp.route('/api/status', methods=['GET'])
+def get_status():
+    """Get participation window status and user eligibility"""
+    try:
+        wallet = session.get('wallet')
+        if not wallet or not session.get('verified'):
+            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+        # Check window
+        window = community_stories_service.is_participation_window_open()
+
+        # Check cooldown
+        cooldown = community_stories_service.check_user_cooldown(wallet)
+
+        # Check pending submission
+        pending = community_stories_service.has_pending_submission(wallet)
+
+        return jsonify({
+            'success': True,
+            'window': window,
+            'cooldown': cooldown,
+            'pending': pending
+        })
+
+    except Exception as e:
+        logger.error(f"❌ Error getting status: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@community_stories_bp.route('/api/submit', methods=['POST'])
+def submit_tweet():
+    """Submit tweet URL"""
+    try:
+        wallet = session.get('wallet')
+        if not wallet or not session.get('verified'):
+            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+        data = request.get_json()
+        tweet_url = data.get('tweet_url', '').strip()
+
+        if not tweet_url:
+            return jsonify({'success': False, 'error': 'Tweet URL required'}), 400
+
+        result = community_stories_service.submit_tweet(wallet, tweet_url)
+
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"❌ Error submitting tweet: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@community_stories_bp.route('/api/submit-screenshot', methods=['POST'])
+def submit_screenshot():
+    """Submit screenshot directly (for participants)"""
+    try:
+        wallet = session.get('wallet')
+        if not wallet or not session.get('verified'):
+            logger.error("❌ Submit screenshot: Not authenticated")
+            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+        # Check if file was uploaded
+        if 'image' not in request.files:
+            return jsonify({'success': False, 'error': 'No image file provided'}), 400
+
+        file = request.files['image']
+
+        if file.filename == '':
+            return jsonify({'success': False, 'error': 'No file selected'}), 400
+
+        # Validate file type
+        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'}
+        file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+        if file_ext not in allowed_extensions:
+            return jsonify({'success': False, 'error': 'Invalid file type. Allowed: png, jpg, jpeg, gif, bmp, webp'}), 400
+
+        # Check participation window
+        window = community_stories_service.is_participation_window_open()
+        if not window['is_open']:
+            return jsonify({
+                'success': False,
+                'error': 'Participation window closed',
+                'next_window': window['next_window']
+            })
+
+        # CRITICAL: Check if user already has a PENDING submission
+        # Users can only submit ONCE - they must wait for approval/rejection
+        pending_check = community_stories_service.has_pending_submission(wallet)
+        if pending_check.get('has_pending'):
+            return jsonify({
+                'success': False,
+                'error': 'You already have a pending submission. Please wait for admin approval.',
+                'pending_submission': pending_check.get('pending_submission')
+            })
+
+        # Check if user already RECEIVED a reward this month
+        # Cooldown only activates AFTER reward is disbursed
+        cooldown = community_stories_service.check_user_cooldown(wallet)
+        if not cooldown.get('can_participate'):
+            return jsonify({
+                'success': False,
+                'error': 'Already received reward this month',
+                'next_participation': cooldown.get('next_participation')
+            })
+
+        # Get ImgBB API key from environment
+        imgbb_api_key = os.getenv('IMGBB_API_KEY')
+
+        if not imgbb_api_key:
+            logger.error("❌ ImgBB API key not configured")
+            return jsonify({'success': False, 'error': 'Image upload service not configured. Please contact admin.'}), 500
+
+        # Upload to ImgBB
+        logger.info(f"📤 User {wallet[:8]}... uploading screenshot to ImgBB...")
+
+        # Read and encode image
+        image_data = base64.b64encode(file.read()).decode('utf-8')
+
+        # Upload to ImgBB
+        upload_url = 'https://api.imgbb.com/1/upload'
+        payload = {
+            'key': imgbb_api_key,
+            'image': image_data,
+            'name': file.filename
+        }
+
+        response = requests.post(upload_url, data=payload, timeout=30)
+
+        if response.status_code != 200:
+            logger.error(f"❌ ImgBB upload failed: {response.status_code} - {response.text}")
+            return jsonify({'success': False, 'error': f'Image upload failed: {response.status_code}'}), 500
+
+        upload_result = response.json()
+
+        if not upload_result.get('success'):
+            logger.error(f"❌ ImgBB API error: {upload_result}")
+            return jsonify({'success': False, 'error': 'Image upload failed'}), 500
+
+        # Get the image URL
+        screenshot_url = upload_result['data']['url']
+
+        logger.info(f"✅ Image uploaded to ImgBB: {screenshot_url}")
+
+        # Generate unique submission ID
+        submission_id = f"CS{uuid.uuid4().hex[:12].upper()}"
+
+        logger.info(f"🔑 Generated submission ID: {submission_id}")
+
+        # Create submission with screenshot
+        result = community_stories_service.submit_screenshot(wallet, screenshot_url, submission_id)
+
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"❌ Error submitting screenshot: {e}")
+        import traceback
+        logger.error(f"🔍 Traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@community_stories_bp.route('/api/admin/update-settings', methods=['POST'])
+def update_settings():
+    """Update Community Stories configuration (admin only)"""
+    try:
+        wallet = session.get('wallet')
+        if not wallet or not session.get('verified'):
+            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+        from supabase_client import is_admin
+        if not is_admin(wallet):
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+
+        data = request.get_json()
+        
+        # Validate data
+        low_reward = data.get('low_reward')
+        high_reward = data.get('high_reward')
+        required_mentions = data.get('required_mentions')
+        window_start_day = data.get('window_start_day')
+        window_end_day = data.get('window_end_day')
+        message = data.get('message')
+
+        if not all([low_reward, high_reward, required_mentions, window_start_day, window_end_day]):
+            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+
+        # Save to database (maintenance_settings table is used for dynamic config)
+        from supabase_client import get_supabase_client
+        supabase = get_supabase_client()
+        
+        import json
+        config_json = json.dumps({
+            'low_reward': low_reward,
+            'high_reward': high_reward,
+            'required_mentions': required_mentions,
+            'window_start_day': window_start_day,
+            'window_end_day': window_end_day
+        })
+
+        # Update or insert config
+        supabase.table('maintenance_settings').upsert({
+            'feature_name': 'community_stories_config',
+            'custom_message': config_json,
+            'is_enabled': True
+        }, on_conflict='feature_name').execute()
+
+        # Update message
+        if message:
+            supabase.table('maintenance_settings').upsert({
+                'feature_name': 'community_stories_message',
+                'custom_message': message,
+                'is_enabled': True
+            }, on_conflict='feature_name').execute()
+
+        return jsonify({'success': True, 'message': 'Settings updated successfully'})
+
+    except Exception as e:
+        logger.error(f"❌ Error updating settings: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@community_stories_bp.route('/api/admin/notifications', methods=['GET'])
+def get_admin_notifications():
+    """Get admin notifications (admin only)"""
+    try:
+        wallet = session.get('wallet')
+        if not wallet or not session.get('verified'):
+            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+        from supabase_client import is_admin
+        if not is_admin(wallet):
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+
+        result = community_stories_service.get_admin_notifications(wallet)
+
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"❌ Error getting admin notifications: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@community_stories_bp.route('/api/admin/approve', methods=['POST'])
+def approve_submission():
+    """Approve submission and disburse reward (admin only)"""
+    try:
+        wallet = session.get('wallet')
+        if not wallet or not session.get('verified'):
+            logger.error(f"❌ Approve submission: Not authenticated")
+            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+        from supabase_client import is_admin
+        if not is_admin(wallet):
+            logger.error(f"❌ Approve submission: Not admin - {wallet[:8]}...")
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+
+        data = request.get_json()
+        submission_id = data.get('submission_id')
+        reward_type = data.get('reward_type')  # 'low' or 'high'
+
+        logger.info(f"📝 Admin {wallet[:8]}... approving submission {submission_id} as {reward_type}")
+
+        if not submission_id or not reward_type:
+            logger.error(f"❌ Missing fields - submission_id: {submission_id}, reward_type: {reward_type}")
+            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+
+        # Validate reward_type
+        if reward_type not in ['low', 'high']:
+            logger.error(f"❌ Invalid reward_type: {reward_type}")
+            return jsonify({'success': False, 'error': 'Invalid reward type. Must be "low" or "high"'}), 400
+
+        # Run async function
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result = loop.run_until_complete(
+                community_stories_service.approve_submission(submission_id, reward_type, wallet)
+            )
+            logger.info(f"📊 Approval result: {result.get('success')} - {result.get('error', 'Success')}")
+        finally:
+            loop.close()
+
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+
+    except Exception as e:
+        logger.error(f"❌ Error approving submission: {e}")
+        import traceback
+        logger.error(f"🔍 Traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@community_stories_bp.route('/api/admin/reject', methods=['POST'])
+def reject_submission():
+    """Reject submission (admin only)"""
+    try:
+        wallet = session.get('wallet')
+        if not wallet or not session.get('verified'):
+            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+        from supabase_client import is_admin
+        if not is_admin(wallet):
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+
+        data = request.get_json()
+        submission_id = data.get('submission_id')
+        reason = data.get('reason')
+
+        if not submission_id:
+            return jsonify({'success': False, 'error': 'Missing submission_id'}), 400
+
+        result = community_stories_service.reject_submission(submission_id, wallet, reason)
+
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"❌ Error rejecting submission: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@community_stories_bp.route('/api/admin/upload-screenshot', methods=['POST'])
+def upload_screenshot():
+    """Upload image directly to ImgBB and save to database"""
+    try:
+        wallet = session.get('wallet')
+        if not wallet or not session.get('verified'):
+            logger.error("❌ Upload screenshot: Not authenticated")
+            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+        from supabase_client import is_admin
+        if not is_admin(wallet):
+            logger.error(f"❌ Upload screenshot: Not admin - {wallet[:8]}...")
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+
+        # Check if file was uploaded
+        if 'image' not in request.files:
+            return jsonify({'success': False, 'error': 'No image file provided'}), 400
+
+        file = request.files['image']
+        wallet_address = request.form.get('wallet_address', '').strip()
+
+        if file.filename == '':
+            return jsonify({'success': False, 'error': 'No file selected'}), 400
+
+        # Validate file type
+        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'}
+        file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+        if file_ext not in allowed_extensions:
+            return jsonify({'success': False, 'error': 'Invalid file type. Allowed: png, jpg, jpeg, gif, bmp, webp'}), 400
+
+        # Get ImgBB API key from environment
+        imgbb_api_key = os.getenv('IMGBB_API_KEY')
+
+        if not imgbb_api_key:
+            logger.error("❌ ImgBB API key not configured")
+            return jsonify({'success': False, 'error': 'ImgBB API key not configured. Please add IMGBB_API_KEY to Secrets.'}), 500
+
+        # Upload to ImgBB
+        logger.info(f"📤 Uploading image to ImgBB...")
+
+        # Read and encode image
+        image_data = base64.b64encode(file.read()).decode('utf-8')
+
+        # Upload to ImgBB
+        upload_url = 'https://api.imgbb.com/1/upload'
+        payload = {
+            'key': imgbb_api_key,
+            'image': image_data,
+            'name': file.filename
+        }
+
+        response = requests.post(upload_url, data=payload, timeout=30)
+
+        if response.status_code != 200:
+            logger.error(f"❌ ImgBB upload failed: {response.status_code} - {response.text}")
+            return jsonify({'success': False, 'error': f'ImgBB upload failed: {response.status_code}'}), 500
+
+        upload_result = response.json()
+
+        if not upload_result.get('success'):
+            logger.error(f"❌ ImgBB API error: {upload_result}")
+            return jsonify({'success': False, 'error': 'ImgBB upload failed'}), 500
+
+        # Get the image URL
+        screenshot_url = upload_result['data']['url']
+
+        logger.info(f"✅ Image uploaded to ImgBB: {screenshot_url}")
+
+        # Use placeholder if no wallet provided
+        if not wallet_address:
+            wallet_address = '0x0000000000000000000000000000000000000000'
+
+        logger.info(f"📸 Admin {wallet[:8]}... saving screenshot for {wallet_address[:8]}...")
+
+        # Generate unique submission ID
+        submission_id = f"CS{uuid.uuid4().hex[:12].upper()}"
+
+        logger.info(f"🔑 Generated submission ID: {submission_id}")
+
+        # Create a screenshot entry in database with ImgBB URL
+        result = community_stories_service.create_screenshot_entry(
+            wallet_address, 
+            screenshot_url,
+            submission_id
+        )
+
+        if result.get('success'):
+            logger.info(f"✅ Screenshot entry created: {submission_id}")
+            result['screenshot_url'] = screenshot_url  # Include URL in response
+        else:
+            logger.error(f"❌ Failed to create DB entry: {result.get('error')}")
+
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"❌ Error uploading screenshot: {e}")
+        import traceback
+        logger.error(f"🔍 Traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@community_stories_bp.route('/api/my-submissions', methods=['GET'])
+def get_my_submissions():
+    """Get user's submission history"""
+    try:
+        wallet = session.get('wallet')
+        if not wallet or not session.get('verified'):
+            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+        result = community_stories_service.get_user_submissions(wallet)
+
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"❌ Error getting submissions: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@community_stories_bp.route('/api/admin/history', methods=['GET'])
+def get_admin_history():
+    """Get processed submissions history (admin only)"""
+    try:
+        wallet = session.get('wallet')
+        if not wallet or not session.get('verified'):
+            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+        from supabase_client import is_admin
+        if not is_admin(wallet):
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+
+        result = community_stories_service.get_submission_history()
+
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"❌ Error getting history: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@community_stories_bp.route('/api/requirement-example-images', methods=['GET'])
+def get_requirement_example_images():
+    """Get requirement example images (selfie examples for higher reward)"""
+    try:
+        limit = int(request.args.get('limit', 3))
+        
+        # Get approved high reward submissions with screenshots as examples
+        supabase = get_supabase_client()
+        if not supabase:
+            return jsonify({'success': False, 'error': 'Database not available', 'images': []}), 200
+        
+        # Get approved_high submissions with screenshots (these are good examples)
+        result = safe_supabase_operation(
+            lambda: supabase.table('community_stories_submissions')\
+                .select('submission_id, storage_path, wallet_address, reviewed_at')\
+                .eq('status', 'approved_high')\
+                .not_.is_('storage_path', 'null')\
+                .order('reviewed_at', desc=True)\
+                .limit(limit)\
+                .execute(),
+            fallback_result=type('obj', (object,), {'data': []})(),
+            operation_name="get requirement example images"
+        )
+        
+        images = []
+        if result.data:
+            for item in result.data:
+                if item.get('storage_path'):
+                    images.append({
+                        'screenshot_url': item['storage_path'],
+                        'title': 'Good Example - Selfie with GoodWallet',
+                        'submission_id': item['submission_id']
+                    })
+        
+        logger.info(f"✅ Retrieved {len(images)} requirement example images")
+        
+        return jsonify({
+            'success': True,
+            'images': images,
+            'count': len(images)
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting requirement example images: {e}")
+        import traceback
+        logger.error(f"🔍 Traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': str(e), 'images': []}), 200
+
+
+@community_stories_bp.route('/api/admin/bulk-approve', methods=['POST'])
+def bulk_approve_submissions():
+    """Bulk approve submissions with a delay between each blockchain transaction (admin only)"""
+    try:
+        wallet = session.get('wallet')
+        if not wallet or not session.get('verified'):
+            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+        from supabase_client import is_admin
+        if not is_admin(wallet):
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+
+        data = request.get_json()
+        submission_ids = data.get('submission_ids', [])
+        reward_type = data.get('reward_type')
+        delay_seconds = int(data.get('delay_seconds', 4))
+
+        if not submission_ids:
+            return jsonify({'success': False, 'error': 'No submission IDs provided'}), 400
+
+        if reward_type not in ['low', 'high']:
+            return jsonify({'success': False, 'error': 'Invalid reward type. Must be "low" or "high"'}), 400
+
+        if delay_seconds < 2:
+            delay_seconds = 2
+        if delay_seconds > 30:
+            delay_seconds = 30
+
+        logger.info(f"📦 Admin {wallet[:8]}... bulk approving {len(submission_ids)} submissions as {reward_type} with {delay_seconds}s delay")
+
+        results = []
+
+        for index, submission_id in enumerate(submission_ids):
+            logger.info(f"⏳ Processing {index + 1}/{len(submission_ids)}: {submission_id}")
+
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    result = loop.run_until_complete(
+                        community_stories_service.approve_submission(submission_id, reward_type, wallet)
+                    )
+                finally:
+                    loop.close()
+
+                results.append({
+                    'submission_id': submission_id,
+                    'success': result.get('success', False),
+                    'tx_hash': result.get('tx_hash'),
+                    'amount': result.get('amount'),
+                    'error': result.get('error')
+                })
+
+                logger.info(f"✅ Processed {submission_id}: {result.get('success')} - {result.get('error', 'OK')}")
+
+            except Exception as e:
+                logger.error(f"❌ Error processing {submission_id}: {e}")
+                results.append({
+                    'submission_id': submission_id,
+                    'success': False,
+                    'error': str(e)
+                })
+
+            if index < len(submission_ids) - 1:
+                logger.info(f"⏱️ Waiting {delay_seconds}s before next transaction...")
+                time.sleep(delay_seconds)
+
+        succeeded = [r for r in results if r['success']]
+        failed = [r for r in results if not r['success']]
+
+        logger.info(f"📊 Bulk approve complete: {len(succeeded)} succeeded, {len(failed)} failed")
+
+        return jsonify({
+            'success': True,
+            'total': len(submission_ids),
+            'succeeded': len(succeeded),
+            'failed': len(failed),
+            'results': results
+        })
+
+    except Exception as e:
+        logger.error(f"❌ Error in bulk approve: {e}")
+        import traceback
+        logger.error(f"🔍 Traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@community_stories_bp.route('/api/admin/bulk-reject', methods=['POST'])
+def bulk_reject_submissions():
+    """Bulk reject submissions (admin only)"""
+    try:
+        wallet = session.get('wallet')
+        if not wallet or not session.get('verified'):
+            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+        from supabase_client import is_admin
+        if not is_admin(wallet):
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+
+        data = request.get_json()
+        submission_ids = data.get('submission_ids', [])
+        reason = data.get('reason', '')
+
+        if not submission_ids:
+            return jsonify({'success': False, 'error': 'No submission IDs provided'}), 400
+
+        logger.info(f"📦 Admin {wallet[:8]}... bulk rejecting {len(submission_ids)} submissions")
+
+        results = []
+
+        for submission_id in submission_ids:
+            try:
+                result = community_stories_service.reject_submission(submission_id, wallet, reason)
+                results.append({
+                    'submission_id': submission_id,
+                    'success': result.get('success', False),
+                    'error': result.get('error')
+                })
+            except Exception as e:
+                logger.error(f"❌ Error rejecting {submission_id}: {e}")
+                results.append({
+                    'submission_id': submission_id,
+                    'success': False,
+                    'error': str(e)
+                })
+
+        succeeded = [r for r in results if r['success']]
+        failed = [r for r in results if not r['success']]
+
+        logger.info(f"📊 Bulk reject complete: {len(succeeded)} succeeded, {len(failed)} failed")
+
+        return jsonify({
+            'success': True,
+            'total': len(submission_ids),
+            'succeeded': len(succeeded),
+            'failed': len(failed),
+            'results': results
+        })
+
+    except Exception as e:
+        logger.error(f"❌ Error in bulk reject: {e}")
+        import traceback
+        logger.error(f"🔍 Traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+
+# =========================================================================
+# P2P Trading Routes (from p2p_trading/routes.py)
+# =========================================================================
+
+"""
+Flask routes for the trustless P2P escrow flow.
+
+Every route here either:
+* returns an **unsigned** transaction payload that the user's wallet (the
+  browser via WalletConnect / MiniPay) is expected to sign and broadcast,
+  *or*
+* returns read-only state combined from the on-chain contract and the
+  Supabase mirror.
+
+The only route that touches a private key on the server side is
+``/p2p/admin/resolve-dispute``, which uses the ADMIN_KEY set on the
+environment for arbiter actions.
+"""
+
+from __future__ import annotations
+
+import logging
+from datetime import datetime, timezone
+from functools import wraps
+from typing import Any, Dict, Optional
+
+from flask import (
+    Blueprint,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
+
+from p2p_trading.chat_service import (
+    ATTACHMENT_MIME_TYPES as CHAT_ATTACHMENT_MIME_TYPES,
+    ChatValidationError,
+    MAX_ATTACHMENT_BYTES as CHAT_MAX_ATTACHMENT_BYTES,
+    MAX_BODY_CHARS as CHAT_MAX_BODY_CHARS,
+    chat_service,
+)
+from p2p_trading.escrow_service import escrow_service
+from p2p_trading.indexer import get_indexer
+from p2p_trading.proofs_service import (
+    MAX_FILE_BYTES,
+    MAX_PROOFS_PER_TRADE,
+    ProofValidationError,
+    guess_mime_type,
+    proofs_service,
+)
+
+# Minimum delay between two messages from the same wallet in the same trade,
+# enforced at the route layer to discourage burst-spam without needing a
+# proper rate-limiter dependency.
+CHAT_RATE_LIMIT_SECONDS = 1.0
+
+logger = logging.getLogger(__name__)
+
+p2p_bp = Blueprint("p2p", __name__)
+
+
+# ---------------------------------------------------------------------------
+# Auth helpers
+# ---------------------------------------------------------------------------
+
+
+def _safe_limit(default: int = 50, cap: int = 200) -> int:
+    """Parse the ``limit`` query arg without raising on garbage like ``?limit=abc``.
+
+    Falls back to ``default`` for missing / non-numeric / non-positive values
+    so we never bubble up a ValueError as an opaque HTTP 500.
+    """
+    raw = request.args.get("limit")
+    if raw is None or raw == "":
+        return default
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        return default
+    if n <= 0:
+        return default
+    return min(n, cap)
+
+
+def _wallet_from_session() -> str:
+    return (session.get("wallet") or session.get("wallet_address") or "").lower()
+
+
+def _is_admin(wallet: str) -> bool:
+    """Return True if the connected wallet is the contract arbiter (ADMIN_KEY).
+
+    Falls back to any address listed in the ``P2P_ADMIN_WALLETS`` env var
+    (comma-separated) so we can support multiple admin reviewers without
+    sharing the ADMIN_KEY.
+    """
+    import os
+
+    if not wallet:
+        return False
+    wallet = wallet.lower()
+    admin_addr = (escrow_service.contract.admin_address or "").lower()
+    if wallet == admin_addr:
+        return True
+    extras = os.getenv("P2P_ADMIN_WALLETS", "")
+    for addr in (a.strip().lower() for a in extras.split(",")):
+        if addr and addr == wallet:
+            return True
+    return False
+
+
+def p2p_auth_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not session.get("verified") or not _wallet_from_session():
+            if request.is_json or request.path.startswith("/p2p/api/"):
+                return jsonify(
+                    {"success": False, "error": "Authentication required"}
+                ), 401
+            return redirect(url_for("home"))
+        return f(*args, **kwargs)
+
+    return wrapper
+
+
+def p2p_terms_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not session.get("verified") or not _wallet_from_session():
+            if request.is_json or request.path.startswith("/p2p/api/"):
+                return jsonify(
+                    {"success": False, "error": "Authentication required"}
+                ), 401
+            return redirect(url_for("home"))
+        if not session.get("p2p_terms_accepted"):
+            if request.is_json or request.path.startswith("/p2p/api/"):
+                return jsonify(
+                    {
+                        "success": False,
+                        "error": "P2P terms acceptance required",
+                        "redirect": url_for("p2p.p2p_terms"),
+                    }
+                ), 403
+            return redirect(url_for("p2p.p2p_terms"))
+        return f(*args, **kwargs)
+
+    return wrapper
+
+
+def admin_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        wallet = _wallet_from_session()
+        if not wallet or not session.get("verified"):
+            return jsonify(
+                {"success": False, "error": "Authentication required"}
+            ), 401
+        if not _is_admin(wallet):
+            return jsonify({"success": False, "error": "Forbidden"}), 403
+        return f(*args, **kwargs)
+
+    return wrapper
+
+
+def _json_body() -> Dict[str, Any]:
+    return request.get_json(silent=True) or {}
+
+
+# ---------------------------------------------------------------------------
+# HTML pages
+# ---------------------------------------------------------------------------
+
+
+@p2p_bp.route("/terms")
+@p2p_auth_required
+def p2p_terms():
+    return render_template("p2p_terms.html", wallet=_wallet_from_session())
+
+
+@p2p_bp.route("/accept-terms", methods=["POST"])
+@p2p_auth_required
+def accept_p2p_terms():
+    session["p2p_terms_accepted"] = True
+    session.permanent = True
+    return jsonify(
+        {
+            "success": True,
+            "message": "P2P Trading terms accepted",
+            "redirect_to": "/p2p/",
+        }
+    )
+
+
+@p2p_bp.route("/")
+@p2p_terms_required
+def p2p_dashboard():
+    wallet = _wallet_from_session()
+    return render_template(
+        "p2p_trading.html",
+        wallet=wallet,
+        contract=escrow_service.contract_status(),
+        payment_methods=escrow_service.payment_methods,
+        fiat_currencies=escrow_service.fiat_currencies,
+        is_admin=_is_admin(wallet),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Contract / config endpoints
+# ---------------------------------------------------------------------------
+
+
+@p2p_bp.route("/api/contract")
+@p2p_auth_required
+def api_contract_info():
+    return jsonify({"success": True, **escrow_service.contract_status()})
+
+
+@p2p_bp.route("/api/config")
+@p2p_auth_required
+def api_config():
+    return jsonify(
+        {
+            "success": True,
+            "payment_methods": escrow_service.payment_methods,
+            "fiat_currencies": escrow_service.fiat_currencies,
+            "min_ad_amount_gd": 20_000,
+            "default_payment_window_seconds": (
+                escrow_service.DEFAULT_PAYMENT_WINDOW_SECONDS
+            ),
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Browse / read APIs
+# ---------------------------------------------------------------------------
+
+
+@p2p_bp.route("/api/ads")
+@p2p_terms_required
+def api_list_ads():
+    wallet = _wallet_from_session()
+    fiat = request.args.get("fiat_currency")
+    method = request.args.get("payment_method")
+    limit = _safe_limit()
+    ads = escrow_service.list_open_ads(
+        viewer_wallet=wallet,
+        fiat_currency=fiat,
+        payment_method=method,
+        limit=limit,
+    )
+    return jsonify({"success": True, "ads": ads, "count": len(ads)})
+
+
+@p2p_bp.route("/api/ads/mine")
+@p2p_terms_required
+def api_my_ads():
+    wallet = _wallet_from_session()
+    ads = escrow_service.get_my_ads(wallet)
+    return jsonify({"success": True, "ads": ads, "count": len(ads)})
+
+
+@p2p_bp.route("/api/trades/mine")
+@p2p_terms_required
+def api_my_trades():
+    wallet = _wallet_from_session()
+    limit = _safe_limit()
+    trades = escrow_service.get_my_trades(wallet, limit=limit)
+    return jsonify({"success": True, "trades": trades, "count": len(trades)})
+
+
+@p2p_bp.route("/api/orders/<order_id>")
+@p2p_terms_required
+def api_get_order(order_id: str):
+    order = escrow_service.get_order(order_id)
+    if not order:
+        return jsonify({"success": False, "error": "Order not found"}), 404
+    return jsonify({"success": True, "order": order})
+
+
+@p2p_bp.route("/api/trades/<trade_id>")
+@p2p_terms_required
+def api_get_trade(trade_id: str):
+    trade = escrow_service.get_trade(trade_id)
+    if not trade:
+        return jsonify({"success": False, "error": "Trade not found"}), 404
+    wallet = _wallet_from_session()
+    if (
+        wallet
+        and wallet not in (
+            (trade.get("buyer_wallet") or "").lower(),
+            (trade.get("seller_wallet") or "").lower(),
+        )
+        and not _is_admin(wallet)
+    ):
+        return jsonify({"success": False, "error": "Forbidden"}), 403
+    return jsonify({"success": True, "trade": trade})
+
+
+# ---------------------------------------------------------------------------
+# Tx-prep endpoints — return unsigned transactions for wallet signing
+# ---------------------------------------------------------------------------
+
+
+@p2p_bp.route("/api/ads/prepare-open", methods=["POST"])
+@p2p_terms_required
+def api_prepare_open_ad():
+    wallet = _wallet_from_session()
+    body = _json_body()
+    try:
+        result = escrow_service.prepare_open_ad(
+            seller_wallet=wallet,
+            total_g_dollar=float(body.get("total_g_dollar")),
+            min_order_g_dollar=float(body.get("min_order_g_dollar")),
+            max_order_g_dollar=float(body.get("max_order_g_dollar")),
+            fiat_amount=float(body.get("fiat_amount")),
+            fiat_currency=body.get("fiat_currency"),
+            payment_method=body.get("payment_method"),
+            payment_details=body.get("payment_details", ""),
+            description=body.get("description", ""),
+        )
+    except (TypeError, ValueError) as exc:
+        return jsonify({"success": False, "error": f"Invalid input: {exc}"}), 400
+    return jsonify(result), (200 if result.get("success") else 400)
+
+
+@p2p_bp.route("/api/ads/<order_id>/prepare-close", methods=["POST"])
+@p2p_terms_required
+def api_prepare_close_ad(order_id: str):
+    wallet = _wallet_from_session()
+    result = escrow_service.prepare_close_ad(wallet, order_id)
+    return jsonify(result), (200 if result.get("success") else 400)
+
+
+@p2p_bp.route("/api/orders/<order_id>/prepare-place", methods=["POST"])
+@p2p_terms_required
+def api_prepare_place_order(order_id: str):
+    wallet = _wallet_from_session()
+    body = _json_body()
+    try:
+        amount = float(body.get("amount_g_dollar"))
+    except (TypeError, ValueError):
+        return jsonify(
+            {"success": False, "error": "Missing/invalid amount_g_dollar"}
+        ), 400
+    window = body.get("payment_window_seconds")
+    try:
+        window = int(window) if window is not None else None
+    except (TypeError, ValueError):
+        return jsonify(
+            {"success": False, "error": "Invalid payment_window_seconds"}
+        ), 400
+    result = escrow_service.prepare_place_order(
+        buyer_wallet=wallet,
+        order_id=order_id,
+        amount_g_dollar=amount,
+        payment_window_seconds=window,
+    )
+    return jsonify(result), (200 if result.get("success") else 400)
+
+
+@p2p_bp.route("/api/trades/<trade_id>/upload-proof", methods=["POST"])
+@p2p_terms_required
+def api_upload_proof(trade_id: str):
+    wallet = _wallet_from_session()
+    body = _json_body()
+    proof_url = (body.get("proof_url") or "").strip()
+    result = escrow_service.upload_payment_proof(wallet, trade_id, proof_url)
+    return jsonify(result), (200 if result.get("success") else 400)
+
+
+# ---------------------------------------------------------------------------
+# Multi-file payment-proof attachments backed by Supabase Storage
+# ---------------------------------------------------------------------------
+
+
+def _trade_membership(wallet: str, trade_id: str) -> Dict[str, Any]:
+    """Return ``{"trade": trade, "role": "buyer"|"seller"|"arbiter"}`` if the
+    wallet is allowed to view/upload proofs for this trade, else
+    ``{"error": ..., "status": int}``."""
+    trade = escrow_service.get_trade(trade_id)
+    if not trade:
+        return {"error": "Trade not found", "status": 404}
+    wallet_lower = (wallet or "").lower()
+    buyer = (trade.get("buyer_wallet") or "").lower()
+    seller = (trade.get("seller_wallet") or "").lower()
+    if wallet_lower and wallet_lower == buyer:
+        return {"trade": trade, "role": "buyer"}
+    if wallet_lower and wallet_lower == seller:
+        return {"trade": trade, "role": "seller"}
+    if _is_admin(wallet_lower):
+        return {"trade": trade, "role": "arbiter"}
+    return {"error": "Forbidden", "status": 403}
+
+
+@p2p_bp.route("/api/trades/<trade_id>/proofs", methods=["GET"])
+@p2p_terms_required
+def api_list_proofs(trade_id: str):
+    wallet = _wallet_from_session()
+    membership = _trade_membership(wallet, trade_id)
+    if "error" in membership:
+        return jsonify(
+            {"success": False, "error": membership["error"]}
+        ), membership["status"]
+
+    proofs = proofs_service.list_for_trade(trade_id, with_signed_urls=True)
+    safe = [
+        {
+            "id": p.get("id"),
+            "trade_id": p.get("trade_id"),
+            "uploader_wallet": p.get("uploader_wallet"),
+            "mime_type": p.get("mime_type"),
+            "size_bytes": p.get("size_bytes"),
+            "original_name": p.get("original_name"),
+            "created_at": p.get("created_at"),
+            "view_url": url_for(
+                "p2p.api_view_proof",
+                trade_id=trade_id,
+                proof_id=p.get("id"),
+            ),
+            "signed_url": p.get("signed_url"),
+        }
+        for p in proofs
+    ]
+    return jsonify({"success": True, "proofs": safe, "count": len(safe)})
+
+
+@p2p_bp.route("/api/trades/<trade_id>/proof-upload", methods=["POST"])
+@p2p_terms_required
+def api_upload_proof_file(trade_id: str):
+    """Accept a multipart file upload, store it in Supabase Storage, and
+    record the metadata. Buyers / sellers / arbiters of the trade only.
+
+    Form fields:
+        file: required, the binary attachment.
+    """
+    wallet = _wallet_from_session()
+    membership = _trade_membership(wallet, trade_id)
+    if "error" in membership:
+        return jsonify(
+            {"success": False, "error": membership["error"]}
+        ), membership["status"]
+
+    upload = request.files.get("file")
+    if upload is None:
+        return jsonify(
+            {"success": False, "error": "Missing 'file' field"}
+        ), 400
+
+    file_bytes = upload.read()
+    if len(file_bytes) > MAX_FILE_BYTES:
+        return jsonify(
+            {
+                "success": False,
+                "error": f"File too large (max {MAX_FILE_BYTES} bytes)",
+            }
+        ), 413
+
+    mime_type = (upload.mimetype or "").lower() or guess_mime_type(
+        upload.filename or ""
+    )
+
+    try:
+        row = proofs_service.upload(
+            trade_id=trade_id,
+            uploader_wallet=wallet,
+            file_bytes=file_bytes,
+            mime_type=mime_type,
+            original_name=upload.filename,
+        )
+    except ProofValidationError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+    except RuntimeError as exc:
+        logger.exception("proofs_service.upload failed")
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+    # Mirror the latest proof's view URL into ``p2p_trades.payment_proof_url``
+    # so the existing "Mark paid" gate (which checks payment_proof_url is
+    # non-empty) keeps working without a DB schema change.
+    if membership.get("role") == "buyer":
+        view_url = url_for(
+            "p2p.api_view_proof",
+            trade_id=trade_id,
+            proof_id=row.get("id"),
+            _external=True,
+        )
+        try:
+            escrow_service.upload_payment_proof(wallet, trade_id, view_url)
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                "Failed to mirror proof view_url to p2p_trades.payment_proof_url"
+            )
+
+    return jsonify(
+        {
+            "success": True,
+            "proof": {
+                "id": row.get("id"),
+                "mime_type": row.get("mime_type"),
+                "size_bytes": row.get("size_bytes"),
+                "original_name": row.get("original_name"),
+                "created_at": row.get("created_at"),
+                "view_url": url_for(
+                    "p2p.api_view_proof",
+                    trade_id=trade_id,
+                    proof_id=row.get("id"),
+                ),
+            },
+        }
+    )
+
+
+@p2p_bp.route("/api/trades/<trade_id>/proofs/<proof_id>/view")
+@p2p_terms_required
+def api_view_proof(trade_id: str, proof_id: str):
+    """Redirect the requesting buyer/seller/arbiter to a fresh signed URL
+    for the stored proof. Re-validates membership on every request so an
+    accidentally leaked URL cannot be replayed by an outsider."""
+    wallet = _wallet_from_session()
+    membership = _trade_membership(wallet, trade_id)
+    if "error" in membership:
+        return jsonify(
+            {"success": False, "error": membership["error"]}
+        ), membership["status"]
+
+    proof = proofs_service.get_proof(proof_id)
+    if not proof or proof.get("trade_id") != trade_id:
+        return jsonify({"success": False, "error": "Proof not found"}), 404
+
+    signed = proofs_service.signed_url(proof.get("storage_path"))
+    if not signed:
+        return jsonify(
+            {"success": False, "error": "Failed to sign URL"}
+        ), 500
+    return redirect(signed, code=302)
+
+
+@p2p_bp.route("/api/proofs/limits", methods=["GET"])
+@p2p_terms_required
+def api_proof_limits():
+    return jsonify(
+        {
+            "success": True,
+            "max_file_bytes": MAX_FILE_BYTES,
+            "max_proofs_per_trade": MAX_PROOFS_PER_TRADE,
+            "allowed_mime_types": [
+                "image/png",
+                "image/jpeg",
+                "image/webp",
+                "application/pdf",
+            ],
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# In-trade chat between buyer / seller / arbiter
+# ---------------------------------------------------------------------------
+
+
+def _chat_attachment_view_url(trade_id: str, message_id: str) -> str:
+    return url_for(
+        "p2p.api_chat_attachment_view",
+        trade_id=trade_id,
+        message_id=message_id,
+    )
+
+
+def _serialize_chat_message(
+    msg: Dict[str, Any], trade_id: str
+) -> Dict[str, Any]:
+    """Shape a DB row for the API response. Never returns the raw storage
+    path — clients always go through the signed-URL redirect endpoint."""
+    out: Dict[str, Any] = {
+        "id": msg.get("id"),
+        "trade_id": msg.get("trade_id"),
+        "sender_wallet": msg.get("sender_wallet"),
+        "sender_role": msg.get("sender_role"),
+        "body": msg.get("body"),
+        "created_at": msg.get("created_at"),
+    }
+    if msg.get("attachment_path"):
+        out["attachment"] = {
+            "mime_type": msg.get("attachment_mime"),
+            "size_bytes": msg.get("attachment_size"),
+            "view_url": _chat_attachment_view_url(trade_id, msg.get("id")),
+        }
+    return out
+
+
+@p2p_bp.route("/api/trades/<trade_id>/chat", methods=["GET"])
+@p2p_terms_required
+def api_list_chat(trade_id: str):
+    """List chat messages for a trade. Buyer / seller / arbiter only.
+
+    Optional ``since`` query arg (ISO-8601 timestamp) acts as a polling
+    cursor — only messages strictly newer are returned.
+    """
+    wallet = _wallet_from_session()
+    membership = _trade_membership(wallet, trade_id)
+    if "error" in membership:
+        return jsonify(
+            {"success": False, "error": membership["error"]}
+        ), membership["status"]
+
+    since = (request.args.get("since") or "").strip() or None
+    msgs = chat_service.list_for_trade(
+        trade_id, since_iso=since, limit=_safe_limit(default=200, cap=500)
+    )
+    safe = [_serialize_chat_message(m, trade_id) for m in msgs]
+    trade = membership["trade"]
+    return jsonify(
+        {
+            "success": True,
+            "messages": safe,
+            "count": len(safe),
+            "read_only": chat_service.is_read_only(trade),
+            "your_role": membership["role"],
+        }
+    )
+
+
+@p2p_bp.route("/api/trades/<trade_id>/chat", methods=["POST"])
+@p2p_terms_required
+def api_send_chat(trade_id: str):
+    """Send a chat message (text and/or single image attachment).
+
+    Accepts either ``application/json`` ``{"body": "..."}`` for text-only
+    messages or ``multipart/form-data`` with ``body`` and/or ``file`` for
+    attachments.
+    """
+    wallet = _wallet_from_session()
+    membership = _trade_membership(wallet, trade_id)
+    if "error" in membership:
+        return jsonify(
+            {"success": False, "error": membership["error"]}
+        ), membership["status"]
+
+    trade = membership["trade"]
+    if chat_service.is_read_only(trade):
+        return jsonify(
+            {
+                "success": False,
+                "error": "Trade is closed; chat is read-only",
+            }
+        ), 409
+
+    # Parse body + optional file from either JSON or multipart.
+    body_text: Optional[str] = None
+    file_bytes: Optional[bytes] = None
+    file_mime: Optional[str] = None
+    file_name: Optional[str] = None
+    if request.content_type and request.content_type.startswith(
+        "multipart/form-data"
+    ):
+        body_text = request.form.get("body")
+        upload = request.files.get("file")
+        if upload is not None:
+            file_bytes = upload.read()
+            if len(file_bytes) > CHAT_MAX_ATTACHMENT_BYTES:
+                return jsonify(
+                    {
+                        "success": False,
+                        "error": (
+                            f"Attachment too large (max "
+                            f"{CHAT_MAX_ATTACHMENT_BYTES} bytes)"
+                        ),
+                    }
+                ), 413
+            file_mime = (upload.mimetype or "").lower() or guess_mime_type(
+                upload.filename or ""
+            )
+            file_name = upload.filename
+    else:
+        payload = _json_body()
+        body_text = payload.get("body")
+
+    # Lightweight rate limit: reject if the same sender already posted in
+    # the last second. Protects against runaway scripts / accidental double-
+    # clicks; not a substitute for a real abuse system.
+    last = chat_service.latest_for_sender(trade_id, wallet)
+    if last and last.get("created_at"):
+        try:
+            last_ts = datetime.fromisoformat(
+                str(last["created_at"]).replace("Z", "+00:00")
+            )
+            now = datetime.now(timezone.utc)
+            delta = (now - last_ts).total_seconds()
+            if delta < CHAT_RATE_LIMIT_SECONDS:
+                return jsonify(
+                    {
+                        "success": False,
+                        "error": "Too many messages — please slow down",
+                    }
+                ), 429
+        except Exception:  # noqa: BLE001
+            # If timestamp parsing fails, fail open rather than block users.
+            pass
+
+    try:
+        row = chat_service.send(
+            trade_id=trade_id,
+            sender_wallet=wallet,
+            sender_role=membership["role"],
+            body=body_text,
+            file_bytes=file_bytes,
+            mime_type=file_mime,
+            original_name=file_name,
+        )
+    except ChatValidationError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+    except RuntimeError as exc:
+        logger.exception("chat_service.send failed")
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+    return jsonify(
+        {
+            "success": True,
+            "message": _serialize_chat_message(row, trade_id),
+        }
+    )
+
+
+@p2p_bp.route(
+    "/api/trades/<trade_id>/chat/<message_id>/attachment", methods=["GET"]
+)
+@p2p_terms_required
+def api_chat_attachment_view(trade_id: str, message_id: str):
+    """Redirect to a fresh signed URL for a chat message's attachment."""
+    wallet = _wallet_from_session()
+    membership = _trade_membership(wallet, trade_id)
+    if "error" in membership:
+        return jsonify(
+            {"success": False, "error": membership["error"]}
+        ), membership["status"]
+
+    msg = chat_service.get_message(message_id)
+    if not msg or msg.get("trade_id") != trade_id:
+        return jsonify({"success": False, "error": "Message not found"}), 404
+    storage_path = msg.get("attachment_path")
+    if not storage_path:
+        return jsonify(
+            {"success": False, "error": "No attachment on this message"}
+        ), 404
+    signed = chat_service.signed_url(storage_path)
+    if not signed:
+        return jsonify(
+            {"success": False, "error": "Failed to sign URL"}
+        ), 500
+    return redirect(signed, code=302)
+
+
+@p2p_bp.route("/api/chat/limits", methods=["GET"])
+@p2p_terms_required
+def api_chat_limits():
+    return jsonify(
+        {
+            "success": True,
+            "max_body_chars": CHAT_MAX_BODY_CHARS,
+            "max_attachment_bytes": CHAT_MAX_ATTACHMENT_BYTES,
+            "allowed_attachment_mime_types": sorted(CHAT_ATTACHMENT_MIME_TYPES),
+            "rate_limit_seconds": CHAT_RATE_LIMIT_SECONDS,
+        }
+    )
+
+
+@p2p_bp.route("/api/trades/<trade_id>/prepare-mark-paid", methods=["POST"])
+@p2p_terms_required
+def api_prepare_mark_paid(trade_id: str):
+    wallet = _wallet_from_session()
+    result = escrow_service.prepare_mark_paid(wallet, trade_id)
+    return jsonify(result), (200 if result.get("success") else 400)
+
+
+@p2p_bp.route("/api/trades/<trade_id>/prepare-release", methods=["POST"])
+@p2p_terms_required
+def api_prepare_release(trade_id: str):
+    wallet = _wallet_from_session()
+    result = escrow_service.prepare_release(wallet, trade_id)
+    return jsonify(result), (200 if result.get("success") else 400)
+
+
+@p2p_bp.route("/api/trades/<trade_id>/prepare-cancel", methods=["POST"])
+@p2p_terms_required
+def api_prepare_cancel(trade_id: str):
+    wallet = _wallet_from_session()
+    result = escrow_service.prepare_cancel_order(wallet, trade_id)
+    return jsonify(result), (200 if result.get("success") else 400)
+
+
+@p2p_bp.route("/api/trades/<trade_id>/prepare-dispute", methods=["POST"])
+@p2p_terms_required
+def api_prepare_dispute(trade_id: str):
+    wallet = _wallet_from_session()
+    result = escrow_service.prepare_dispute(wallet, trade_id)
+    return jsonify(result), (200 if result.get("success") else 400)
+
+
+@p2p_bp.route("/api/tx-submitted", methods=["POST"])
+@p2p_terms_required
+def api_tx_submitted():
+    wallet = _wallet_from_session()
+    body = _json_body()
+    kind = body.get("kind")
+    identifier = body.get("identifier")
+    tx_hash = body.get("tx_hash")
+    if kind not in ("ad", "trade") or not identifier or not tx_hash:
+        return jsonify(
+            {"success": False, "error": "kind, identifier, tx_hash required"}
+        ), 400
+    result = escrow_service.record_tx_submitted(
+        kind, identifier, tx_hash, wallet
+    )
+    return jsonify(result), (200 if result.get("success") else 400)
+
+
+# ---------------------------------------------------------------------------
+# Admin / arbiter endpoints
+# ---------------------------------------------------------------------------
+
+
+@p2p_bp.route("/api/admin/disputes")
+@admin_required
+def api_admin_list_disputes():
+    disputes = escrow_service.get_disputes()
+    return jsonify({"success": True, "disputes": disputes})
+
+
+@p2p_bp.route("/api/admin/disputes/<trade_id>/resolve", methods=["POST"])
+@admin_required
+def api_admin_resolve_dispute(trade_id: str):
+    body = _json_body()
+    if "buyer_wins" not in body or not isinstance(body["buyer_wins"], bool):
+        return jsonify(
+            {
+                "success": False,
+                "error": "buyer_wins (strict boolean) is required",
+            }
+        ), 400
+    buyer_wins = body["buyer_wins"]
+    arbiter = _wallet_from_session()
+    result = escrow_service.resolve_dispute(trade_id, buyer_wins, arbiter)
+    return jsonify(result), (200 if result.get("success") else 400)
+
+
+# ---------------------------------------------------------------------------
+# Indexer / health endpoints
+# ---------------------------------------------------------------------------
+
+
+@p2p_bp.route("/api/indexer/poll", methods=["POST"])
+@admin_required
+def api_indexer_poll():
+    counts = get_indexer().poll_once()
+    last = get_indexer().get_last_indexed_block()
+    return jsonify(
+        {"success": True, "events": counts, "last_indexed_block": last}
+    )
+
+
+@p2p_bp.route("/api/indexer/state")
+@admin_required
+def api_indexer_state():
+    indexer = get_indexer()
+    return jsonify(
+        {
+            "success": True,
+            "last_indexed_block": indexer.get_last_indexed_block(),
+            "head_block": indexer.w3.eth.block_number
+            if indexer.w3.is_connected()
+            else None,
+            "contract_address": indexer.contract.address,
+            "deployed_block": indexer.contract.deployed_block,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# init_p2p_trading has been moved to app.py

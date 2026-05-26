@@ -1,5 +1,5 @@
-from .routes import price_prediction_bp
+"""Price Prediction module — re-exports for backward compatibility."""
+
 from .price_prediction_service import price_prediction_service
 
-def init_price_prediction(app):
-    app.register_blueprint(price_prediction_bp)
+__all__ = ['price_prediction_service']

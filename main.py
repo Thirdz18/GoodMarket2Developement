@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify, render_template, session, redirect
 from blockchain import has_recent_ubi_claim, is_identity_verified, check_ubi_entitlement
 from analytics_service import analytics
 from routes import routes
-from learn_and_earn import init_learn_and_earn, init_learn_earn_stream_scheduler
 from web3 import Web3
 from datetime import datetime # Import datetime for session timestamp
 import os
@@ -12,8 +11,6 @@ import sys
 import json
 import base64 as _b64
 
-from reloadly import init_reloadly
-from savings import init_savings
 
 
 from functools import wraps
@@ -559,159 +556,10 @@ def inject_feature_visibility():
         return {"swap_visible": True, "wallet_visible": True, "savings_visible": True,
                 "topup_visible": True, "giftcard_visible": True, "utility_visible": True}
 
-# Initialize Telegram Task
-from telegram_task import init_telegram_task
-if not init_telegram_task(app):
-    logger.warning("⚠️ Telegram Task initialization failed")
-else:
-    logger.info("✅ Telegram Task initialized successfully")
-
-# Initialize Twitter Task
-from twitter_task import init_twitter_task
-if not init_twitter_task(app):
-    logger.warning("⚠️ Twitter Task initialization failed")
-else:
-    logger.info("✅ Twitter Task initialized successfully")
-
-# Initialize Discourse Task
-from discourse_task import init_discourse_task
-if not init_discourse_task(app):
-    logger.warning("⚠️ Discourse Task initialization failed")
-else:
-    logger.info("✅ Discourse Task initialized successfully")
-
-
-# Initialize News Feed first
-from news_feed import init_news_feed, news_feed_service
-init_news_feed(app)
-
-# Initialize Minigames System
-logger.info("🎮 Initializing Minigames system...")
-from minigames import init_minigames
-if init_minigames(app):
-    logger.info("✅ Minigames system initialized")
-else:
-    logger.error("❌ Minigames initialization failed")
-
-
-# Register Telegram bot blueprint
-from telegram_bot import telegram_bot
-app.register_blueprint(telegram_bot)
-logger.info("✅ Telegram bot blueprint registered")
-
-# Initialize G$ Savings
-logger.info("💰 Initializing G$ Savings system...")
-if init_savings(app):
-    logger.info("✅ G$ Savings initialized")
-else:
-    logger.error("❌ G$ Savings initialization failed")
-
-# Initialize Reloadly Store
-logger.info("🛒 Initializing Reloadly Store...")
-if init_reloadly(app):
-    logger.info("✅ Reloadly Store initialized")
-else:
-    logger.error("❌ Reloadly Store initialization failed")
-
-# Initialize Jumble Words System
-logger.info("🔤 Initializing Jumble Words system...")
-from jumble import init_jumble
-if init_jumble(app):
-    logger.info("✅ Jumble Words system initialized")
-else:
-    logger.error("❌ Jumble Words initialization failed")
-
-# Initialize Price Prediction System
-logger.info("📈 Initializing Price Prediction system...")
-try:
-    from price_prediction import init_price_prediction
-    init_price_prediction(app)
-    logger.info("✅ Price Prediction system initialized")
-except Exception as e:
-    logger.error(f"❌ Price Prediction initialization failed: {e}")
-
-# Initialize Community Stories System
-logger.info("🌟 Initializing Community Stories system...")
-from community_stories import init_community_stories
-if init_community_stories(app):
-    logger.info("✅ Community Stories system initialized")
-else:
-    logger.error("❌ Community Stories initialization failed")
-
-# Initialize Reward Configuration Service
-logger.info("💰 Initializing Reward Configuration Service...")
-try:
-    from reward_config_service import reward_config_service
-    logger.info("✅ Reward Configuration Service initialized")
-except Exception as e:
-    logger.error(f"❌ Reward Configuration Service initialization failed: {e}")
-
-# Initialize Referral Program system (at module level for gunicorn compatibility)
-logger.info("🎁 Initializing Referral Program system...")
-try:
-    from referral_program import referral_bp
-    app.register_blueprint(referral_bp)
-    logger.info("✅ Referral Program system ready")
-except Exception as e:
-    logger.warning(f"⚠️ Referral Program initialization failed: {e}")
-
-# Initialize Learn & Earn System at module level (required for gunicorn)
-logger.info("🎓 Initializing Learn & Earn system...")
-if init_learn_and_earn(app):
-    logger.info("✅ Learn & Earn system initialized")
-else:
-    logger.error("❌ Learn & Earn initialization failed")
-
-# Spawn the in-process Learn & Earn stream worker. Self-gated: starts only
-# when LEARN_EARN_PAYOUT_MODE is a streaming alias (or LEARN_EARN_STREAM_SCHEDULER_ENABLED=1).
-# Each Gunicorn worker spawns its own thread; per-row OCC claims keep concurrent runs safe.
-try:
-    if init_learn_earn_stream_scheduler(app):
-        logger.info("✅ Learn & Earn stream scheduler started")
-    else:
-        logger.info("ℹ️ Learn & Earn stream scheduler not started (disabled or instant mode)")
-except Exception as e:
-    logger.error(f"❌ Learn & Earn stream scheduler initialization failed: {e}")
-
-# Initialize trustless P2P Trading (GoodMarketP2PEscrow contract)
-logger.info("🤝 Initializing P2P Trading system...")
-try:
-    from p2p_trading import init_p2p_trading
-    init_p2p_trading(app)
-    logger.info("✅ P2P Trading system initialized")
-except Exception as e:
-    logger.error(f"❌ P2P Trading initialization failed: {e}")
-
-# Initialize GoodMarket claim reconciler (opt-in via
-# GOODMARKET_CLAIM_RECONCILER_ENABLED). The reconciler is the server-side
-# safety net for goodmarket_claim_facts: it polls rows stuck at
-# status='submitted' and flips them to confirmed/failed/unknown based on
-# real on-chain receipts, so users who successfully claimed but whose
-# wallet UI never fired the receipt callback still roll into the
-# goodmarket_unique_claimers KPI.
-logger.info("🧮 Initializing GoodMarket claim reconciler...")
-try:
-    from goodmarket_claim_reconciler import init_goodmarket_claim_reconciler
-    if init_goodmarket_claim_reconciler(app):
-        logger.info("✅ GoodMarket claim reconciler started")
-    else:
-        logger.info("ℹ️ GoodMarket claim reconciler not started (disabled)")
-except Exception as e:
-    logger.error(f"❌ GoodMarket claim reconciler initialization failed: {e}")
-
-# Initialize GoodMarket attribution backfill (auto-runs once on next boot,
-# gated by a sentinel row so multi-worker deploys don't double-run). Catches
-# every wallet that verified on GoodDollar AND has GoodMarket-claim activity
-# but is still missing verified_after_goodmarket=TRUE in user_data.
-logger.info("🏷️ Initializing GoodMarket attribution backfill...")
-try:
-    from goodmarket_attribution_backfill import init_attribution_backfill
-    if init_attribution_backfill(app):
-        logger.info("✅ GoodMarket attribution backfill scheduled")
-    else:
-        logger.info("ℹ️ GoodMarket attribution backfill not scheduled (disabled or already ran)")
-except Exception as e:
-    logger.error(f"❌ GoodMarket attribution backfill initialization failed: {e}")
+# =========================================================================
+# Module initialisation has been moved to app.py
+# All init_* calls are now centralised there.
+# =========================================================================
 
 
 @app.route("/health")

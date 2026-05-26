@@ -3,7 +3,7 @@ import uuid
 import json
 from datetime import datetime, timedelta, timezone
 from supabase_client import get_supabase_client, safe_supabase_operation
-from .blockchain import community_stories_blockchain
+from blockchain import community_stories_blockchain
 from config import COMMUNITY_STORIES_CONFIG
 import asyncio
 

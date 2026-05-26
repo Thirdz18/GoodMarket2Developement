@@ -4,7 +4,7 @@ import re
 import string
 from datetime import date, datetime
 from supabase_client import get_supabase_client
-from .blockchain import jumble_blockchain
+from blockchain import jumble_blockchain
 
 logger = logging.getLogger(__name__)
 

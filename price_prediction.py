@@ -1,10 +1,7 @@
-"""Compatibility façade for legacy price_prediction package while migrating toward flat module layout."""
-from price_prediction.routes import price_prediction_bp
+"""Compatibility facade for legacy price_prediction package while migrating toward flat module layout."""
+
+from routes import price_prediction_bp
 from price_prediction.price_prediction_service import price_prediction_service
+from app import init_price_prediction
 
-def init_price_prediction(app):
-    app.register_blueprint(price_prediction_bp)
-
-from price_prediction.routes import *  # noqa: F401,F403
-
-from price_prediction.price_prediction_service import *  # noqa: F401,F403
+__all__ = ['price_prediction_bp', 'price_prediction_service', 'init_price_prediction']

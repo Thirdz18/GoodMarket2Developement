@@ -5,7 +5,7 @@ import random
 import uuid
 from datetime import datetime, date
 from supabase_client import get_supabase_client
-from .blockchain import minigames_blockchain
+from blockchain import minigames_blockchain
 
 logger = logging.getLogger(__name__)
 

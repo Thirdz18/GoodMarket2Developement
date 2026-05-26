@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 from typing import Dict, Any
 from supabase_client import get_supabase_client, safe_supabase_operation
-from .blockchain import discourse_blockchain_service
+from blockchain import discourse_blockchain_service
 
 logger = logging.getLogger(__name__)
 
