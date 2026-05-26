@@ -13,6 +13,7 @@ import asyncio
 import uuid
 import time as _time_module
 from decimal import Decimal, ROUND_DOWN
+from web3 import Web3
 from web3.exceptions import TimeExhausted
 
 logger = logging.getLogger("blockchain")

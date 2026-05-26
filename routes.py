@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for, make_response
 from blockchain import has_recent_ubi_claim, GOODDOLLAR_CONTRACTS
 from analytics_service import analytics
@@ -11948,8 +11950,6 @@ The only route that touches a private key on the server side is
 ``/p2p/admin/resolve-dispute``, which uses the ADMIN_KEY set on the
 environment for arbiter actions.
 """
-
-from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
