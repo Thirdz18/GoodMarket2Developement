@@ -585,10 +585,10 @@ def claim_daily_task():
 
         # Import appropriate service
         if platform == 'twitter':
-            from twitter_task.twitter_task import twitter_task_service
+            from twitter_task import twitter_task_service
             service = twitter_task_service
         else:  # telegram
-            from telegram_task.telegram_task import telegram_task_service
+            from telegram_task import telegram_task_service
             service = telegram_task_service
 
         import asyncio
@@ -626,8 +626,8 @@ def get_daily_task_status():
         wallet = session.get('wallet')
 
         # Import both services
-        from twitter_task.twitter_task import twitter_task_service
-        from telegram_task.telegram_task import telegram_task_service
+        from twitter_task import twitter_task_service
+        from telegram_task import telegram_task_service
         from datetime import datetime, timezone
 
         import asyncio
@@ -741,8 +741,8 @@ def get_daily_task_history():
         wallet = session.get('wallet')
         limit = int(request.args.get('limit', 50))
 
-        from twitter_task.twitter_task import twitter_task_service
-        from telegram_task.telegram_task import telegram_task_service
+        from twitter_task import twitter_task_service
+        from telegram_task import telegram_task_service
 
         # Get all histories
         twitter_history = twitter_task_service.get_transaction_history(wallet, limit)
@@ -1083,7 +1083,7 @@ def serve_screenshot(filename):
 def get_community_screenshots():
     """Get community screenshots for homepage"""
     try:
-        from community_stories.community_stories_service import community_stories_service
+        from community_stories import community_stories_service
         from supabase_client import get_supabase_client
         from cache_utils import api_cache
 
@@ -1625,8 +1625,8 @@ def verify_ubi():
             # Inviter (referrer) gets 1000 G$, Invited user (referee) gets 500 G$.
             # If REFERRAL_KEY runs out, rewards are marked pending_disbursed and auto-retried.
             try:
-                from referral_program.referral_service import referral_service
-                from referral_program.blockchain import referral_blockchain_service
+                from referral_program import referral_service
+                from referral_program import referral_blockchain_service
 
                 is_face_verified = fv_result.get('verified', False)
 
@@ -2338,7 +2338,7 @@ def get_admin_referral_stats():
 def admin_disburse_referral_by_code():
     """Admin: trigger disbursement for a specific referral code."""
     try:
-        from referral_program.referral_service import referral_service
+        from referral_program import referral_service
 
         data = request.get_json(silent=True) or {}
         referral_code = (data.get("referral_code") or "").strip().upper()
@@ -3367,7 +3367,7 @@ def set_minigames_maintenance():
 def get_quiz_settings():
     """Get current quiz settings"""
     try:
-        from learn_and_earn.learn_and_earn import quiz_manager
+        from learn_and_earn import quiz_manager
 
         settings = quiz_manager.get_quiz_settings()
         return jsonify({
@@ -3383,7 +3383,7 @@ def get_quiz_settings():
 def get_community_stories_settings():
     """Get Community Stories settings (admin only)"""
     try:
-        from community_stories.community_stories_service import community_stories_service
+        from community_stories import community_stories_service
 
         config = community_stories_service.get_config()
 
@@ -3658,7 +3658,7 @@ def update_insufficient_balance_message():
 def update_quiz_settings():
     """Update quiz settings"""
     try:
-        from learn_and_earn.learn_and_earn import quiz_manager
+        from learn_and_earn import quiz_manager
 
         data = request.json
         questions_per_quiz = data.get('questions_per_quiz')
@@ -3717,7 +3717,7 @@ def get_my_referral_code():
     """
     try:
         wallet = session.get('wallet')
-        from referral_program.referral_service import referral_service, BASE_URL
+        from referral_program import referral_service, BASE_URL
 
         # Fast path: check user_data directly
         supabase = supabase_logger.client if supabase_logger and supabase_logger.enabled else None
@@ -3752,7 +3752,7 @@ def get_referral_stats():
     """Get referral program statistics for the current user."""
     try:
         wallet = session.get('wallet')
-        from referral_program.referral_service import referral_service
+        from referral_program import referral_service
         result = referral_service.get_referral_stats(wallet)
         return jsonify(result)
     except Exception as e:
@@ -3765,7 +3765,7 @@ def get_referral_stats():
 def process_pending_referral_rewards():
     """Admin: attempt to disburse all pending referral rewards."""
     try:
-        from referral_program.referral_service import referral_service
+        from referral_program import referral_service
         result = referral_service.process_pending_disbursements()
         return jsonify(result)
     except Exception as e:
@@ -3778,8 +3778,8 @@ def process_pending_referral_rewards():
 def get_referral_key_balance():
     """Admin: check REFERRAL_KEY wallet balance and pending disbursement queue."""
     try:
-        from referral_program.blockchain import referral_blockchain_service
-        from referral_program.referral_service import referral_service
+        from referral_program import referral_blockchain_service
+        from referral_program import referral_service
         
         # Check REFERRAL_KEY balance
         balance_result = referral_blockchain_service.get_referral_wallet_balance()
@@ -3824,7 +3824,7 @@ def get_referral_key_balance():
 def check_referral_status(referral_code):
     """Check referral code status and history (for debugging)"""
     try:
-        from referral_program.referral_service import referral_service
+        from referral_program import referral_service
 
         # Validate code
         validation = referral_service.validate_referral_code(referral_code)
@@ -3967,12 +3967,12 @@ def approve_daily_task():
         try:
             result = None
             if platform == 'telegram':
-                from telegram_task.telegram_task import telegram_task_service
+                from telegram_task import telegram_task_service
                 result = loop.run_until_complete(
                     telegram_task_service.approve_submission(submission_id, admin_wallet)
                 )
             elif platform == 'twitter':
-                from twitter_task.twitter_task import twitter_task_service
+                from twitter_task import twitter_task_service
                 result = loop.run_until_complete(
                     twitter_task_service.approve_submission(submission_id, admin_wallet)
                 )
@@ -4018,12 +4018,12 @@ def reject_daily_task():
         try:
             result = None
             if platform == 'telegram':
-                from telegram_task.telegram_task import telegram_task_service
+                from telegram_task import telegram_task_service
                 result = loop.run_until_complete(
                     telegram_task_service.reject_submission(submission_id, admin_wallet, reason)
                 )
             elif platform == 'twitter':
-                from twitter_task.twitter_task import twitter_task_service
+                from twitter_task import twitter_task_service
                 result = loop.run_until_complete(
                     twitter_task_service.reject_submission(submission_id, admin_wallet, reason)
                 )
@@ -4094,10 +4094,10 @@ def _run_bulk_approve_job(job_id, tasks, delay_seconds, admin_wallet):
             asyncio.set_event_loop(loop)
             try:
                 if platform == 'telegram':
-                    from telegram_task.telegram_task import telegram_task_service
+                    from telegram_task import telegram_task_service
                     result = loop.run_until_complete(telegram_task_service.approve_submission(submission_id, admin_wallet))
                 elif platform == 'twitter':
-                    from twitter_task.twitter_task import twitter_task_service
+                    from twitter_task import twitter_task_service
                     result = loop.run_until_complete(twitter_task_service.approve_submission(submission_id, admin_wallet))
                 else:
                     result = None
@@ -4230,10 +4230,10 @@ def bulk_reject_daily_tasks():
                 asyncio.set_event_loop(loop)
                 try:
                     if platform == 'telegram':
-                        from telegram_task.telegram_task import telegram_task_service
+                        from telegram_task import telegram_task_service
                         result = loop.run_until_complete(telegram_task_service.reject_submission(submission_id, admin_wallet, reason))
                     elif platform == 'twitter':
-                        from twitter_task.twitter_task import twitter_task_service
+                        from twitter_task import twitter_task_service
                         result = loop.run_until_complete(twitter_task_service.reject_submission(submission_id, admin_wallet, reason))
                 finally:
                     loop.close()
@@ -5587,7 +5587,7 @@ def get_discourse_task_settings():
         wallet = session.get('wallet')
         if not wallet:
             return jsonify({"success": False, "error": "Not authenticated"}), 401
-        from discourse_task.discourse_task import discourse_task_service
+        from discourse_task import discourse_task_service
         settings = discourse_task_service.get_settings()
         current_link = settings.get('link')
         user_status = discourse_task_service.get_user_status(wallet, current_link)
@@ -5612,7 +5612,7 @@ def submit_discourse_username():
         wallet = session.get('wallet')
         if not wallet:
             return jsonify({"success": False, "error": "Not authenticated"}), 401
-        from discourse_task.discourse_task import discourse_task_service
+        from discourse_task import discourse_task_service
         data = request.json
         discourse_username = data.get('discourse_username', '').strip()
         discourse_link = data.get('discourse_link', '').strip()
@@ -5632,7 +5632,7 @@ def submit_discourse_username():
 def admin_get_discourse_settings():
     """Admin: Get discourse task settings"""
     try:
-        from discourse_task.discourse_task import discourse_task_service
+        from discourse_task import discourse_task_service
         settings = discourse_task_service.get_settings()
         return jsonify(settings)
     except Exception as e:
@@ -5645,7 +5645,7 @@ def admin_get_discourse_settings():
 def admin_update_discourse_settings():
     """Admin: Update discourse task settings"""
     try:
-        from discourse_task.discourse_task import discourse_task_service
+        from discourse_task import discourse_task_service
         data = request.json
         discourse_link = data.get('discourse_link', '').strip()
         reward_amount = float(data.get('reward_amount', 500))
@@ -5671,7 +5671,7 @@ def admin_update_discourse_settings():
 def admin_get_discourse_pending():
     """Admin: Get pending discourse task submissions"""
     try:
-        from discourse_task.discourse_task import discourse_task_service
+        from discourse_task import discourse_task_service
         result = discourse_task_service.get_pending_submissions()
         return jsonify(result)
     except Exception as e:
@@ -5684,7 +5684,7 @@ def admin_get_discourse_pending():
 def admin_approve_discourse():
     """Admin: Approve a discourse task submission and disburse reward"""
     try:
-        from discourse_task.discourse_task import discourse_task_service
+        from discourse_task import discourse_task_service
         data = request.json
         submission_id = data.get('submission_id')
         admin_wallet = session.get('wallet')
@@ -5720,7 +5720,7 @@ def admin_approve_discourse():
 def admin_reject_discourse():
     """Admin: Reject a discourse task submission"""
     try:
-        from discourse_task.discourse_task import discourse_task_service
+        from discourse_task import discourse_task_service
         data = request.json
         submission_id = data.get('submission_id')
         reason = data.get('reason', '')
@@ -7846,7 +7846,7 @@ def admin_reset_voucher():
 def admin_treasury_status():
     """Return current Unified Treasury balance, stats, and recipient addresses."""
     try:
-        from unified_treasury.service import get_treasury_status
+        from unified_treasury import get_treasury_status
         status = get_treasury_status()
         return jsonify(status)
     except Exception as e:
@@ -7864,7 +7864,7 @@ def admin_treasury_distribute():
             "amount": <float G$> }
     """
     try:
-        from unified_treasury.service import distribute_funds, RECIPIENT_LABELS
+        from unified_treasury import distribute_funds, RECIPIENT_LABELS
         wallet = session.get("wallet")
         data   = request.get_json(force=True) or {}
 

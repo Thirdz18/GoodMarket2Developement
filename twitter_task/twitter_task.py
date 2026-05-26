@@ -114,7 +114,7 @@ class TwitterTaskService:
         """Get custom message for the user - wallet-based rotation ensures unique messages with personal referral link"""
         import hashlib
         from datetime import datetime, timezone
-        from referral_program.referral_service import ReferralService
+        from referral_program import ReferralService
         
         # Normalize wallet address to lowercase
         wallet_normalized = wallet_address.lower().strip()
@@ -573,7 +573,7 @@ class TwitterTaskService:
             logger.info(f"✅ Admin {admin_wallet[:8]}... approving submission {submission_id}")
 
             # Disburse reward (use the amount stored in the submission)
-            from twitter_task.blockchain import twitter_blockchain_service
+            from twitter_task import twitter_blockchain_service
 
             current_reward = float(sub_data['reward_amount'])
             disbursement = twitter_blockchain_service.disburse_twitter_reward_sync(
