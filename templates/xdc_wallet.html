@@ -1,0 +1,2369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>XDC Wallet - GoodMarket</title>
+    <meta name="theme-color" content="#2563eb">
+    <link rel="icon" type="image/png" href="/static/icons/goodmarket-icon.png?v={{ ASSET_VERSION }}">
+    <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"
+            integrity="sha384-gpR0Q6Hx/O+uevlbpbANbS0LWjbejPV1sqD/8w422l/fW8whGY0EPmKw3uG7ACYP"
+            crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="/static/js/tx-preview.js?v={{ ASSET_VERSION }}"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+
+        /* Compact 70% scale for desktop/mobile/dapp browsers (visual-only) */
+        html { zoom: 0.7; }
+        @supports not (zoom: 1) {
+            body {
+                transform: scale(0.7);
+                transform-origin: top center;
+                width: 142.857%;
+                margin-left: -21.4285%;
+            }
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #060d1f 0%, #0d1a3a 50%, #0a1628 100%);
+            color: #e2e8f0;
+            min-height: 100vh;
+        }
+
+        /* Navbar */
+        .navbar {
+            background: rgba(6, 13, 31, 0.92);
+            border-bottom: 1px solid rgba(255,255,255,0.07);
+            padding: 0 1.5rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            box-shadow: 0 1px 24px rgba(0,0,0,0.35);
+        }
+        .nav-container {
+            max-width: 1300px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 56px;
+            gap: 0.75rem;
+        }
+        .logo { font-size: 1.2rem; font-weight: 800; color: #2563eb; text-decoration: none; letter-spacing: -0.5px; white-space: nowrap; flex-shrink: 0; }
+        .nav-links { display: flex; gap: 0.1rem; align-items: center; flex-wrap: nowrap; overflow: hidden; }
+        .nav-links a { color: rgba(255,255,255,0.55); text-decoration: none; font-weight: 500; font-size: 0.875rem; white-space: nowrap; padding: 0.4rem 0.65rem; border-radius: 8px; transition: color 0.2s, background 0.2s; }
+        .nav-links a:hover { color: #60a5fa; background: rgba(37,99,235,0.1); }
+        .nav-links a.active { color: #fff; background: rgba(37,99,235,0.18); font-weight: 600; }
+        .nav-sep { width: 1px; height: 20px; background: rgba(255,255,255,0.12); margin: 0 0.4rem; flex-shrink: 0; }
+        .wallet-tag {
+            background: rgba(37,99,235,0.12);
+            border: 1px solid rgba(37,99,235,0.28);
+            border-radius: 20px;
+            padding: 0.28rem 0.8rem;
+            font-weight: 600;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.8rem;
+            color: #60a5fa;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .logout-btn {
+            background: rgba(239,68,68,0.1) !important;
+            border: 1px solid rgba(239,68,68,0.25) !important;
+            color: #f87171 !important;
+            padding: 0.28rem 0.85rem !important;
+            border-radius: 20px !important;
+            font-size: 0.85rem !important;
+            white-space: nowrap !important;
+            flex-shrink: 0;
+            transition: background 0.2s, color 0.2s !important;
+        }
+        .logout-btn:hover { background: rgba(239,68,68,0.2) !important; color: #fca5a5 !important; }
+        @media (max-width: 768px) {
+            .navbar { padding: 0 0.75rem; }
+            .nav-container { height: auto; padding: 0.5rem 0; flex-wrap: wrap; gap: 0.3rem; }
+            .nav-links { gap: 0; }
+            .nav-links a { font-size: 0.78rem; padding: 0.35rem 0.45rem; }
+        }
+
+        /* Main container */
+        .container {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 1rem 1rem 1.5rem;
+        }
+
+        /* Header */
+        .page-header { margin-bottom: 1rem; }
+        .page-title { font-size: 1.5rem; font-weight: 800; color: #fff; }
+        .page-subtitle { font-size: 0.85rem; color: rgba(255,255,255,0.5); margin-top: 0.2rem; }
+
+        /* Network badge */
+        .network-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: linear-gradient(135deg, rgba(37,99,235,0.2), rgba(16,185,129,0.15));
+            border: 1px solid rgba(37,99,235,0.35);
+            border-radius: 20px;
+            padding: 0.3rem 0.9rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #60a5fa;
+            margin-top: 0.75rem;
+        }
+        .network-dot { width: 8px; height: 8px; background: #10b981; border-radius: 50%; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+        /* Cards */
+        .card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 14px;
+            padding: 1.1rem;
+            margin-bottom: 0.85rem;
+        }
+        .card-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: rgba(255,255,255,0.7);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.85rem;
+        }
+
+        /* Balance grid */
+        .balance-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.6rem;
+        }
+        .bal-item {
+            background: rgba(37,99,235,0.06);
+            border: 1px solid rgba(37,99,235,0.15);
+            border-radius: 10px;
+            padding: 0.75rem;
+            text-align: center;
+        }
+        .bal-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: #fff;
+            font-size: 0.7rem;
+            font-weight: 700;
+            border-radius: 8px;
+            padding: 0.15rem 0.55rem;
+            margin-bottom: 0.4rem;
+            letter-spacing: 0.04em;
+        }
+        .bal-value {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: #fff;
+            line-height: 1.2;
+        }
+        .bal-sub {
+            font-size: 0.75rem;
+            color: rgba(255,255,255,0.45);
+            margin-top: 0.25rem;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0.4rem;
+            margin-bottom: 0.85rem;
+            flex-wrap: wrap;
+        }
+        .tab-btn {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.6);
+            border-radius: 8px;
+            padding: 0.4rem 0.9rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.18s;
+        }
+        .tab-btn.active {
+            background: rgba(37,99,235,0.2);
+            border-color: rgba(37,99,235,0.45);
+            color: #60a5fa;
+        }
+        .tab-btn:hover:not(.active) { color: #fff; border-color: rgba(255,255,255,0.2); }
+
+        /* Form */
+        .form-group { margin-bottom: 0.7rem; }
+        .form-label { font-size: 0.78rem; color: rgba(255,255,255,0.6); font-weight: 500; display: block; margin-bottom: 0.3rem; }
+        .form-input {
+            width: 100%;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 10px;
+            padding: 0.55rem 0.85rem;
+            color: #fff;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.18s;
+        }
+        .form-input:focus { border-color: rgba(37,99,235,0.5); }
+        .form-input::placeholder { color: rgba(255,255,255,0.25); }
+        .amount-row { display: flex; gap: 0.5rem; }
+        .amount-row .form-input { flex: 1; }
+        .max-btn {
+            background: rgba(37,99,235,0.15);
+            border: 1px solid rgba(37,99,235,0.3);
+            color: #60a5fa;
+            border-radius: 8px;
+            padding: 0 0.9rem;
+            font-size: 0.8rem;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.18s;
+        }
+        .max-btn:hover { background: rgba(37,99,235,0.25); }
+
+        .send-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            padding: 0.85rem;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: opacity 0.18s;
+            margin-top: 0.5rem;
+        }
+        .send-btn:hover:not(:disabled) { opacity: 0.88; }
+        .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Alerts */
+        .alert { margin-top: 0.75rem; padding: 0.75rem 1rem; border-radius: 10px; font-size: 0.88rem; display: none; }
+        .alert.show { display: block; }
+        .alert-success { background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); color: #6ee7b7; }
+        .alert-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25); color: #fca5a5; }
+        .tx-link { color: #60a5fa; text-decoration: none; word-break: break-all; }
+        .tx-link:hover { text-decoration: underline; }
+
+        /* No wallet warning */
+        .warn-box {
+            background: rgba(245,158,11,0.08);
+            border: 1px solid rgba(245,158,11,0.25);
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+            font-size: 0.82rem;
+            color: rgba(251,191,36,0.85);
+            margin-bottom: 1rem;
+        }
+
+        /* Transaction History */
+        .tx-list { list-style: none; }
+        .tx-item {
+            display: flex;
+            align-items: center;
+            gap: 0.9rem;
+            padding: 0.85rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .tx-item:last-child { border-bottom: none; }
+        .tx-icon {
+            width: 34px; height: 34px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1rem; font-weight: 700; flex-shrink: 0;
+        }
+        .tx-icon.sent     { background: rgba(239,68,68,0.12); color: #f87171; }
+        .tx-icon.received { background: rgba(16,185,129,0.12); color: #6ee7b7; }
+        .tx-meta { flex: 1; min-width: 0; }
+        .tx-dir { font-weight: 700; font-size: 0.9rem; }
+        .tx-dir.sent { color: #f87171; }
+        .tx-dir.received { color: #6ee7b7; }
+        .tx-addr { font-size: 0.75rem; color: rgba(255,255,255,0.45); font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .tx-time { font-size: 0.72rem; color: rgba(255,255,255,0.3); margin-top: 2px; }
+        .tx-amount { font-weight: 700; font-size: 0.9rem; white-space: nowrap; }
+        .tx-amount.sent { color: #f87171; }
+        .tx-amount.received { color: #6ee7b7; }
+        .tx-hash-link { font-size: 0.72rem; color: #60a5fa; text-decoration: none; display: block; text-align: right; }
+        .tx-hash-link:hover { text-decoration: underline; }
+        .empty-state { text-align: center; color: rgba(255,255,255,0.35); padding: 2rem 1rem; font-size: 0.9rem; }
+
+        /* Spinner */
+        .spinner-inline {
+            display: inline-block;
+            width: 14px; height: 14px;
+            border: 2px solid rgba(255,255,255,0.25);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            vertical-align: middle;
+            margin-right: 6px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Info box */
+        .info-box {
+            background: rgba(37,99,235,0.08);
+            border: 1px solid rgba(37,99,235,0.2);
+            border-radius: 10px;
+            padding: 0.8rem 1rem;
+            font-size: 0.82rem;
+            color: rgba(147,197,253,0.85);
+            margin-bottom: 1rem;
+        }
+
+        /* Network switcher */
+        .network-switcher {
+            display: inline-flex;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 40px;
+            padding: 4px;
+            gap: 4px;
+            margin-top: 0.85rem;
+        }
+        .net-btn {
+            border: none;
+            border-radius: 36px;
+            padding: 0.4rem 1.1rem;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            color: rgba(255,255,255,0.45);
+            background: transparent;
+        }
+        .net-btn.active { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; box-shadow: 0 2px 10px rgba(37,99,235,0.35); }
+        .net-btn:not(.active):hover { color: rgba(255,255,255,0.75); background: rgba(255,255,255,0.07); }
+        .net-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+        .net-dot.celo { background: #35a869; }
+        .net-dot.xdc  { background: #60a5fa; }
+
+        @media(max-width: 600px) {
+            .balance-grid { grid-template-columns: 1fr 1fr; }
+            .bal-value { font-size: 1.15rem; }
+        }
+    </style>
+    <!-- WalletConnect bridge for users without injected wallet -->
+    <script src="{{ url_for('static', filename='js/wc-bridge.js', v=ASSET_VERSION) }}"></script>
+    <script>
+        if (typeof GMWalletConnect !== "undefined") {
+            GMWalletConnect.configure({
+                walletAddress: "{{ wallet }}",
+                loginMethod: "{{ login_method }}",
+                projectId: "{{ walletconnect_project_id|default('', true) }}",
+                sidecarEnabled: {{ 'true' if walletconnect_sidecar_enabled|default(true) else 'false' }},
+                dappName: "GoodMarket — XDC Wallet",
+                dappDescription: "Manage XDC and G$ tokens",
+                chainHex: "0x32",
+                chainId: 50,
+                rpcUrl: "https://erpc.xinfin.network",
+                assetVersion: "{{ ASSET_VERSION }}",
+            });
+        }
+    </script>
+</head>
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/dashboard" class="logo">💠 XDC Wallet</a>
+            <div class="nav-links">
+                <a href="/overview">Overview</a>
+                <a href="/dashboard">Dashboard</a>
+                <a href="/wallet">Celo Wallet</a>
+                <a href="/xdc-wallet" class="active">XDC Wallet</a>
+                <a href="/profile">Profile</a>
+                <div class="nav-sep"></div>
+                {% if wallet and wallet != 'None' %}
+                <div class="wallet-tag">{{ wallet[:6] }}...{{ wallet[-4:] }}</div>
+                {% endif %}
+                <a href="/logout" class="logout-btn">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        {% include "_security_banner.html" %}
+        {% include "_claim_celebration.html" %}
+
+        <!-- Header -->
+        <div class="page-header">
+            <h1 class="page-title">💠 XDC Wallet</h1>
+            <p class="page-subtitle">Manage your XDC and xUSDT tokens on the XDC Network</p>
+            <div class="network-badge">
+                <span class="network-dot"></span>
+                XDC Network (Mainnet) · Chain ID 50
+            </div>
+            <div>
+                <div class="network-switcher">
+                    <button class="net-btn" id="switchToCeloBtn" onclick="switchToCelo()">
+                        <span class="net-dot celo"></span> Celo Network
+                    </button>
+                    <button class="net-btn active" disabled>
+                        <span class="net-dot xdc"></span> XDC Network
+                    </button>
+                </div>
+            </div>
+            <div id="netSwitchStatus" style="font-size:0.8rem; color:rgba(255,255,255,0.45); margin-top:0.5rem; min-height:1.2em;"></div>
+        </div>
+
+        <!-- Balances -->
+        <div class="card">
+            <div class="card-title">Balances</div>
+            <div class="balance-grid">
+                <div class="bal-item">
+                    <div class="bal-badge">XDC</div>
+                    <div class="bal-value" id="xdcBalance">—</div>
+                    <div class="bal-sub">XinFin Coin</div>
+                </div>
+                <div class="bal-item">
+                    <div class="bal-badge" style="background: linear-gradient(135deg, #26a17b, #1a8a62);">xUSDT</div>
+                    <div class="bal-value" id="xusdtBalance">—</div>
+                    <div class="bal-sub">Tether on XDC</div>
+                </div>
+                <div class="bal-item" style="grid-column: 1 / -1; background: linear-gradient(135deg, rgba(124,58,237,0.1), rgba(37,99,235,0.08)); border-color: rgba(124,58,237,0.25);">
+                    <div class="bal-badge" style="background: linear-gradient(135deg, #7c3aed, #5b21b6);">G$ on XDC</div>
+                    <div class="bal-value" id="gdXdcBalance" style="color: #a78bfa;">—</div>
+                    <div class="bal-sub">GoodDollar on XDC Network</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- G$ Claim on XDC -->
+        <div class="card" style="border-color: rgba(124,58,237,0.3); background: linear-gradient(135deg, rgba(124,58,237,0.06), rgba(37,99,235,0.04));">
+            <div class="card-title" style="color: #a78bfa;">🌟 Claim G$ on XDC Network</div>
+
+            <!-- Not whitelisted warning -->
+            <div id="xdcNotWhitelisted" style="display:none; background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25); border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 1rem; font-size: 0.85rem; color: #fbbf24; line-height: 1.6;">
+                ⚠️ <strong>You are not yet verified on XDC GoodDollar.</strong><br>
+                To claim G$ on XDC, you need to verify your identity on <a href="https://wallet.gooddollar.org" target="_blank" style="color:#fbbf24;">GoodWallet</a> using the same wallet address.
+            </div>
+
+            <!-- Entitlement display -->
+            <div id="xdcClaimInfo" style="display:none; margin-bottom: 1rem;">
+                <div style="display:flex; align-items:center; justify-content:space-between; background: rgba(124,58,237,0.1); border: 1px solid rgba(124,58,237,0.25); border-radius: 12px; padding: 1rem 1.2rem;">
+                    <div>
+                        <div style="font-size:0.78rem; color:rgba(255,255,255,0.5); margin-bottom:0.2rem;">Claimable Today</div>
+                        <div style="font-size:1.5rem; font-weight:800; color:#a78bfa;" id="xdcClaimableAmt">—</div>
+                    </div>
+                    <div style="font-size:2rem;">🪙</div>
+                </div>
+            </div>
+
+            <!-- No wallet warning + MetaMask setup instructions (only shown for users who sign with browser wallets) -->
+            <div id="xdcNoWalletInstructions" style="display:none; margin-bottom:1rem;">
+                <div style="background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25); border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 0.75rem; font-size: 0.85rem; color: #fbbf24;">
+                    ⚠️ <strong>No Web3 wallet detected.</strong> Please open this page in a Web3-compatible browser or wallet app.
+                </div>
+                <a href="https://metamask.io/download/" target="_blank" rel="noopener" style="display:inline-block; background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.3); color: #fbbf24; border-radius: 8px; padding: 0.5rem 1rem; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-bottom: 1rem;">
+                    📥 Download MetaMask →
+                </a>
+            </div>
+
+            <!-- MetaMask XDC setup instructions (shown if XDC not in wallet) -->
+            <div id="xdcSetupInstructions" style="display:none; background: rgba(37,99,235,0.07); border: 1px solid rgba(37,99,235,0.2); border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1rem;">
+                <div style="font-weight:700; color:#60a5fa; font-size:0.88rem; margin-bottom:0.75rem;">📋 How to add XDC Network to MetaMask:</div>
+                <div style="font-size:0.82rem; color:rgba(255,255,255,0.65); line-height:1.8;">
+                    <div style="margin-bottom:0.4rem;">① Open MetaMask → click the network dropdown at the top</div>
+                    <div style="margin-bottom:0.4rem;">② Click <strong>"Add network"</strong> → <strong>"Add a network manually"</strong></div>
+                    <div style="margin-bottom:0.8rem;">③ Enter the following network details:</div>
+                    <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 0.75rem 1rem; font-family: monospace; font-size: 0.8rem; color: #93c5fd; line-height: 2;">
+                        Network Name: <strong>XDC Network</strong><br>
+                        RPC URL: <strong>https://erpc.xinfin.network</strong><br>
+                        Chain ID: <strong>50</strong><br>
+                        Currency Symbol: <strong>XDC</strong><br>
+                        Block Explorer: <strong>https://xdcscan.com</strong>
+                    </div>
+                    <div style="margin-top:0.65rem;">④ Click <strong>"Save"</strong> — then try the Claim button again.</div>
+                </div>
+            </div>
+
+            <button id="btnClaimXDCGD" onclick="claimGDonXDC()" style="width:100%; background: linear-gradient(135deg, #7c3aed, #5b21b6); color:#fff; border:none; border-radius:12px; padding:0.9rem; font-size:1rem; font-weight:700; cursor:pointer; transition: opacity 0.18s; margin-bottom:0.5rem;">
+                <span id="claimXDCBtnText">🌟 Claim G$ on XDC</span>
+            </button>
+
+            <div id="claimXDCAlert" class="alert"></div>
+
+            <!-- Countdown Timer (shown after claim or when already claimed today) -->
+            <div id="xdcCountdownBox" style="display:none; text-align:center; margin-top:0.75rem;
+                background:rgba(0,0,0,0.25); border-radius:12px; padding:0.75rem 1rem;">
+                <div style="font-size:0.68rem; color:rgba(255,255,255,0.45); margin-bottom:0.3rem; letter-spacing:0.05em; text-transform:uppercase;">
+                    Next Claim Opens In
+                </div>
+                <div id="xdcCountdownDisplay" style="
+                    font-size:1.55rem; font-weight:800; letter-spacing:0.06em;
+                    background: linear-gradient(90deg, #a78bfa, #60a5fa);
+                    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+                    font-variant-numeric:tabular-nums; line-height:1.1;
+                ">--:--:--</div>
+                <div style="font-size:0.68rem; color:rgba(255,255,255,0.35); margin-top:0.25rem;">
+                    Resets at <strong style="color:rgba(255,255,255,0.55);">12:00 UTC</strong>
+                    &nbsp;·&nbsp; <strong style="color:rgba(255,255,255,0.55);">8:00 PM</strong> Philippine Time
+                </div>
+            </div>
+
+            <!-- Footer chips -->
+            <div style="display:flex; align-items:center; justify-content:center; gap:0.9rem; margin-top:0.85rem; flex-wrap:wrap;">
+                <div style="display:flex;align-items:center;gap:0.3rem;font-size:0.68rem;color:rgba(255,255,255,0.35);"><span>⚡</span><span>Very low gas on XDC</span></div>
+                <div style="display:flex;align-items:center;gap:0.3rem;font-size:0.68rem;color:rgba(255,255,255,0.35);"><span>🔒</span><span>Secured by GoodDollar</span></div>
+                <div style="display:flex;align-items:center;gap:0.3rem;font-size:0.68rem;color:rgba(255,255,255,0.35);"><span>⏰</span><span>Claimable daily</span></div>
+            </div>
+        </div>
+
+        <!-- Send Section (hidden: use main wallet Send Token instead) -->
+        <div class="card" style="display:none;">
+            <div class="card-title">Send Tokens</div>
+
+            <!-- No wallet warning -->
+            <div class="warn-box" id="noWalletWarn" style="display:none;">
+                <span id="noWalletText">⚠️ No Web3 wallet detected. Install MetaMask or open this page inside a Web3 browser, then add the XDC Network.</span>
+                <div style="margin-top:8px; font-size:0.78rem; color:rgba(251,191,36,0.7);">
+                    XDC Network RPC: <code style="color:#fbbf24;">https://erpc.xinfin.network</code> · Chain ID: <code style="color:#fbbf24;">50</code>
+                </div>
+            </div>
+
+            <!-- Info -->
+            <div class="info-box">
+                💡 Make sure your wallet (MetaMask / XDCPay) is connected to the <strong>XDC Network</strong> (Chain ID 50) before sending.
+            </div>
+
+            <!-- Token Tabs -->
+            <div class="tabs">
+                <button class="tab-btn active" id="tabXDC" onclick="switchTab('XDC')">Send XDC</button>
+                <button class="tab-btn" id="tabXUSDT" onclick="switchTab('XUSDT')">Send xUSDT</button>
+            </div>
+
+            <!-- XDC Send Form -->
+            <div id="formXDC">
+                <div class="form-group">
+                    <label class="form-label">Recipient Address (0x... or xdc...)</label>
+                    <input class="form-input" id="xdcTo" type="text" placeholder="0x... or xdc..." autocomplete="off" spellcheck="false">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Amount (XDC)</label>
+                    <div class="amount-row">
+                        <input class="form-input" id="xdcAmount" type="number" min="0.0001" step="any" placeholder="0.00">
+                        <button class="max-btn" onclick="setMax('XDC')">MAX</button>
+                    </div>
+                </div>
+                <button class="send-btn" id="btnSendXDC" onclick="sendToken('XDC')">Send XDC</button>
+                <div class="alert" id="alertXDC"></div>
+            </div>
+
+            <!-- xUSDT Send Form -->
+            <div id="formXUSDT" style="display:none;">
+                <div class="form-group">
+                    <label class="form-label">Recipient Address (0x... or xdc...)</label>
+                    <input class="form-input" id="xusdtTo" type="text" placeholder="0x... or xdc..." autocomplete="off" spellcheck="false">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Amount (xUSDT)</label>
+                    <div class="amount-row">
+                        <input class="form-input" id="xusdtAmount" type="number" min="0.000001" step="any" placeholder="0.00">
+                        <button class="max-btn" onclick="setMax('XUSDT')">MAX</button>
+                    </div>
+                </div>
+                <button class="send-btn" id="btnSendXUSDT" onclick="sendToken('XUSDT')">Send xUSDT</button>
+                <div class="alert" id="alertXUSDT"></div>
+            </div>
+        </div>
+
+        <!-- XSwap (XDC) -->
+        <div class="card" style="border-color: rgba(56,189,248,0.28); background: linear-gradient(135deg, rgba(2,132,199,0.08), rgba(59,130,246,0.04));">
+            <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+                <span>💠 X Swap (XDC)</span>
+                <span style="font-size:0.72rem;color:rgba(255,255,255,0.55);font-weight:600;">XSwap V2 Router</span>
+            </div>
+
+            <div class="info-box" style="margin-bottom:0.9rem;">
+                Swap directly between <strong>G$ on XDC</strong> and <strong>native XDC</strong>. Configure slippage and preview minimum output before confirming.
+            </div>
+
+            <div class="tabs" style="margin-bottom:0.8rem;">
+                <button class="tab-btn active" id="xswapDirGDtoXDC" onclick="setXswapDirection('GD_TO_XDC')">G$ XDC → XDC</button>
+                <button class="tab-btn" id="xswapDirXDCtoGD" onclick="setXswapDirection('XDC_TO_GD')">XDC → G$ XDC</button>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Amount In</label>
+                <div class="amount-row">
+                    <input class="form-input" id="xswapAmountIn" type="number" min="0.000000000000000001" step="any" placeholder="0.00" oninput="xswapQuoteReady=false;">
+                    <button class="max-btn" onclick="setXswapMax()">MAX</button>
+                </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.85rem;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">Slippage (%)</label>
+                    <input class="form-input" id="xswapSlippage" type="number" min="0.1" max="20" step="0.1" value="1.0">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">Deadline (minutes)</label>
+                    <input class="form-input" id="xswapDeadline" type="number" min="1" max="120" step="1" value="20">
+                </div>
+            </div>
+
+            <div id="xswapPreview" style="display:none;background:rgba(15,23,42,0.48);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:0.8rem 0.9rem;margin-bottom:0.8rem;">
+                <div style="font-size:0.76rem;color:rgba(255,255,255,0.6);margin-bottom:0.35rem;">Route Preview</div>
+                <div id="xswapRoute" style="font-size:0.85rem;color:#93c5fd;font-weight:700;">—</div>
+                <div style="display:flex;justify-content:space-between;gap:0.8rem;margin-top:0.55rem;font-size:0.78rem;">
+                    <span style="color:rgba(255,255,255,0.65);">Estimated Out: <strong id="xswapEstimatedOut" style="color:#e2e8f0;">—</strong></span>
+                    <span style="color:rgba(255,255,255,0.65);">Min Out: <strong id="xswapMinOut" style="color:#86efac;">—</strong></span>
+                </div>
+            </div>
+
+            <div style="display:flex;gap:0.6rem;flex-wrap:wrap;">
+                <button class="send-btn" id="btnXswapQuote" onclick="quoteXswap()" style="margin:0;flex:1 1 180px;background:linear-gradient(135deg,#0ea5e9,#0284c7);">Get Quote</button>
+                <button class="send-btn" id="btnXswapExec" onclick="executeXswap()" style="margin:0;flex:1 1 180px;background:linear-gradient(135deg,#2563eb,#1d4ed8);">Swap Now</button>
+            </div>
+            <div class="alert" id="xswapAlert"></div>
+        </div>
+
+        <!-- Bridge G$ (XDC → Celo) — moved to /swap → Bridge → "XDC → Celo".
+             Card replaced with a banner so existing bookmarks / muscle memory
+             don't 404; user can deep-link straight to the right sub-pane. -->
+        <div class="card" style="border-color: rgba(167,139,250,0.35); background: linear-gradient(135deg, rgba(124,58,237,0.12), rgba(37,99,235,0.05));">
+            <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+                <span>🌉 Bridge G$ (XDC → Celo)</span>
+                <span style="font-size:0.72rem;color:rgba(255,255,255,0.55);font-weight:600;">Moved to GoodSwap</span>
+            </div>
+
+            <div class="info-box" style="margin-bottom:1rem; line-height:1.65;">
+                The XDC → Celo bridge has moved to the unified
+                <strong>Bridge</strong> tab on GoodSwap, alongside Celo → XDC.
+                Same minimum (2,000 G$), same fees, same itemized errors —
+                just one place for both directions.
+            </div>
+
+            <div style="display:flex;gap:0.6rem;flex-wrap:wrap;">
+                <a class="send-btn"
+                   href="/swap?tab=bridge&dir=xdc_to_celo"
+                   style="margin:0;flex:1 1 220px;background:linear-gradient(135deg,#7c3aed,#5b21b6);text-align:center;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:0.4rem;">
+                    Open Bridge (XDC → Celo) ↗
+                </a>
+                <a class="send-btn"
+                   href="/swap?tab=bridge&dir=celo_to_xdc"
+                   style="margin:0;flex:1 1 220px;background:linear-gradient(135deg,#0ea5e9,#0369a1);text-align:center;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:0.4rem;">
+                    Open Bridge (Celo → XDC) ↗
+                </a>
+            </div>
+        </div>
+
+        <!-- Transaction History -->
+        <div class="card">
+            <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+                <span>XDC Transaction History</span>
+                <button onclick="loadHistory()" style="background:none;border:none;color:#60a5fa;font-size:0.82rem;cursor:pointer;font-weight:600;">↻ Refresh</button>
+            </div>
+            <ul class="tx-list" id="txList">
+                <li class="empty-state">
+                    <span class="spinner-inline"></span> Loading history...
+                </li>
+            </ul>
+        </div>
+
+        <!-- About XDC Network -->
+        <div class="card">
+            <div class="card-title">About XDC Network</div>
+            <div style="font-size:0.85rem; color:rgba(255,255,255,0.55); line-height:1.7;">
+                <p>XDC Network is an enterprise-grade, EVM-compatible blockchain focused on trade finance and real-world asset tokenization.</p>
+                <ul style="margin-top:0.75rem; padding-left:1.2rem;">
+                    <li>Block time: ~2 seconds</li>
+                    <li>Very low transaction fees</li>
+                    <li>EVM-compatible (supports MetaMask)</li>
+                    <li>Explorer: <a href="https://explorer.xinfin.network" target="_blank" rel="noopener" style="color:#60a5fa;">explorer.xinfin.network</a></li>
+                </ul>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const WALLET = "{{ wallet }}";
+        const XDC_CHAIN_ID = 50;
+        const XDC_CHAIN_ID_HEX = "0x32";
+        const LOGIN_METHOD = "{{ login_method }}";
+        const useServerSigning = {{ 'true' if use_server_signing else 'false' }};
+        const XSWAP_V2_ROUTER = "0xf9c5E4f6E627201aB2d6FB6391239738Cf4bDcf9";
+        const WXDC_ADDRESS = "0x951857744785E80e2De051c32EE7b25f9c458C42";
+        const XDC_GD_TOKEN = "{{ xdc_gd_token_contract }}";
+        const XDC_CELO_BRIDGE = "{{ xdc_bridge_contract }}";
+        const CELO_CHAIN_ID = {{ celo_chain_id }};
+        const XSWAP_ROUTER_ABI = [
+            "function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts)",
+            "function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline) external payable returns (uint[] memory amounts)",
+            "function swapExactTokensForETH(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external returns (uint[] memory amounts)"
+        ];
+        const ERC20_ABI = [
+            "function approve(address spender, uint256 value) external returns (bool)",
+            "function allowance(address owner, address spender) external view returns (uint256)"
+        ];
+        const BRIDGE_ABI = [
+            "function bridgeTo(address target, uint256 targetChainId, uint256 amount, uint8 bridge) payable",
+            "function canBridge(address from, uint256 amount) view returns (bool)",
+        ];
+        const BRIDGE_SERVICE_LAYERZERO = 1;
+        const BRIDGE_FALLBACK_FEE_XDC_TO_CELO = 1.6176;
+        // GoodMarket-side minimum bridge amount, mirrors the Celo → XDC tab.
+        // Sits above the contract's own minAmount so the tab is reserved
+        // for transfers that are actually worth the LayerZero fee.
+        const XDC_TO_CELO_UI_MIN_AMOUNT_GD = 2000;
+        // Realistic worst-case gas units for the two on-chain operations the
+        // XDC → Celo bridge tab triggers. Mirrors the Celo → XDC reserve
+        // logic in swap.html so the user gets a clear app-side alert with
+        // an itemized breakdown ("LayerZero fee Y + approve + bridge gas
+        // ≈ Z, add about D more XDC") instead of a generic "Not enough
+        // XDC" message that doesn't tell them how much to top up.
+        const XDC_TO_CELO_BRIDGE_TO_GAS_LIMIT = 500000n;
+        const XDC_TO_CELO_APPROVE_GAS_LIMIT   = 60000n;
+        // Pad applied to a successful eth_estimateGas result so the
+        // preflight tracks what the wallet will actually reserve as
+        // gasLimit at submit time (~1.15× of the simulation).
+        const XDC_TO_CELO_ESTIMATE_PAD_BPS    = 1500n; // +15%
+        // Headroom on top of (gasUnits × gasPrice) so a small gas-price
+        // tick between preflight and submit doesn't knock a barely-funded
+        // wallet back out of the check.
+        const XDC_TO_CELO_GAS_RESERVE_BUFFER_BPS = 500n; // +5%
+        // Static fallback reserve when we can't fetch gasPrice (RPC down).
+        // Sized for XDC's typical 0.25–12.5 gwei range with comfortable
+        // head-room, so users still don't slip past the preflight when
+        // the dynamic path fails. (12.5 gwei × 500k gas ≈ 0.00625 XDC,
+        // padded to 0.01 XDC for safety.)
+        const XDC_TO_CELO_GAS_RESERVE_FALLBACK_XDC = 0.01;
+        // Tiny rounding safety so the preflight never approves a tx that
+        // ends up 1 wei short of the wallet's gas estimate.
+        const XDC_TO_CELO_GAS_RESERVE_FLOOR_XDC = 0.001;
+
+        function _providerLabel(provider) {
+            if (!provider) return 'wallet';
+            // Check if it's a WalletConnect provider (has specific WC properties)
+            if (provider.__isWalletConnect || (provider && provider.constructor && provider.constructor.name === 'EIP1193Bridge')) {
+                return 'WalletConnect';
+            }
+            if (provider.isMiniPay) return 'MiniPay';
+            if (provider.isTrust) return 'Trust Wallet';
+            if (provider.isMetaMask) return 'MetaMask';
+            return 'wallet';
+        }
+
+        function _getEthProvider() {
+            // First, check for injected wallets (MetaMask, Trust Wallet, MiniPay, etc.)
+            if (window.ethereum) {
+                if (window.ethereum.providers && window.ethereum.providers.length) {
+                    // Mobile dApp browsers often inject multiple providers.
+                    // Prefer MiniPay / Trust Wallet when present, then fallback to MetaMask.
+                    const miniPay = window.ethereum.providers.find(p => p && p.isMiniPay);
+                    if (miniPay) return miniPay;
+                    const trust = window.ethereum.providers.find(p => p && p.isTrust);
+                    if (trust) return trust;
+                    const mm = window.ethereum.providers.find(p => p && p.isMetaMask && !p.isBraveWallet);
+                    if (mm) return mm;
+                    return window.ethereum.providers[0];
+                }
+                return window.ethereum;
+            }
+            
+            // Fallback to WalletConnect if no injected wallet is detected
+            if (typeof GMWalletConnect !== "undefined" && GMWalletConnect.isPreferred && GMWalletConnect.isPreferred()) {
+                return GMWalletConnect.getProvider();
+            }
+            
+            return null;
+        }
+
+        let xdcBalanceVal = 0;
+        let xusdtBalanceVal = 0;
+        let xswapDirection = "GD_TO_XDC";
+        let xswapQuoteReady = false;
+        let xswapQuoteData = null;
+        let bridgeFeeEstimateDebounce = null;
+        let bridgeFeeSourceState = 'manual';
+        let bridgeAttemptContext = null;
+        let bridgeRecommendedFeeWei = null;
+
+        async function loadBalances() {
+            try {
+                const res = await fetch('/api/xdc/balances');
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!data.success) return;
+
+                const xdc = data.xdc;
+                if (xdc && xdc.success) {
+                    xdcBalanceVal = xdc.balance || 0;
+                    document.getElementById('xdcBalance').textContent = xdcBalanceVal.toFixed(4) + ' XDC';
+                } else {
+                    document.getElementById('xdcBalance').textContent = '0 XDC';
+                }
+
+                const xusdt = data.xusdt;
+                if (xusdt && xusdt.success) {
+                    xusdtBalanceVal = xusdt.balance || 0;
+                    document.getElementById('xusdtBalance').textContent = xusdtBalanceVal.toFixed(4) + ' xUSDT';
+                } else {
+                    document.getElementById('xusdtBalance').textContent = '0 xUSDT';
+                }
+            } catch (e) {
+                document.getElementById('xdcBalance').textContent = 'Error';
+                document.getElementById('xusdtBalance').textContent = 'Error';
+            }
+        }
+
+        function showXswapAlert(type, msg) {
+            const el = document.getElementById('xswapAlert');
+            if (!el) return;
+            el.className = `alert ${type} show`;
+            el.innerHTML = msg;
+        }
+
+        function clearXswapAlert() {
+            const el = document.getElementById('xswapAlert');
+            if (!el) return;
+            el.className = 'alert';
+            el.innerHTML = '';
+        }
+
+        function showBridgeAlert(type, msg) {
+            const el = document.getElementById('bridgeAlertXdcToCelo');
+            if (!el) return;
+            el.className = `alert ${type} show`;
+            el.innerHTML = msg;
+        }
+
+        function clearBridgeAlert() {
+            const el = document.getElementById('bridgeAlertXdcToCelo');
+            if (!el) return;
+            el.className = 'alert';
+            el.innerHTML = '';
+        }
+
+        function _fmtBridgeAmount(value, symbol = 'G$') {
+            const n = Number(value || 0);
+            if (!Number.isFinite(n)) return `0.000000 ${symbol}`;
+            return `${n.toFixed(6)} ${symbol}`;
+        }
+
+        function _fmtBridgeFeeXdc(value) {
+            const n = Number(value || 0);
+            if (!Number.isFinite(n)) return '—';
+            return `${n.toFixed(6)} XDC`;
+        }
+
+        async function _bridgeDebugLog(event, details = {}) {
+            try {
+                await fetch('/api/xdc/bridge/debug-log', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        event,
+                        attempt_id: bridgeAttemptContext?.attempt_id || null,
+                        details
+                    })
+                });
+            } catch (_) {}
+        }
+
+        function markBridgeFeeManual() {
+            bridgeRecommendedFeeWei = null;
+            const feeInput = document.getElementById('bridgeFeeXdcToCelo');
+            if (feeInput) feeInput.dataset.autofilledWei = '';
+        }
+
+        function updateBridgeSummary() {
+            const amountStr = (document.getElementById('bridgeAmountXdcToCelo')?.value || '').trim();
+            const feeStr = (document.getElementById('bridgeFeeXdcToCelo')?.value || '').trim();
+            const gross = parseFloat(amountStr || '0') || 0;
+            const feeXdc = parseFloat(feeStr || '0');
+            const net = gross;
+
+            const grossEl = document.getElementById('bridgeGrossReceive');
+            const feeEl = document.getElementById('bridgeFeeDeductionDisplay');
+            const netEl = document.getElementById('bridgeNetReceive');
+            if (grossEl) grossEl.textContent = _fmtBridgeAmount(gross);
+            if (feeEl) feeEl.textContent = Number.isFinite(feeXdc) && feeXdc > 0
+                ? `${_fmtBridgeFeeXdc(feeXdc)} (actual fee may be lower; excess can be refunded)`
+                : '—';
+            if (netEl) netEl.textContent = _fmtBridgeAmount(net);
+        }
+
+        function setBridgeMax() {
+            const gdText = (document.getElementById('gdXdcBalance').textContent || '0').replace(/[^\d.]/g, '');
+            const gdBal = parseFloat(gdText || '0') || 0;
+            document.getElementById('bridgeAmountXdcToCelo').value = gdBal > 0 ? gdBal.toFixed(6) : '0';
+            updateBridgeSummary();
+            scheduleBridgeFeeEstimate();
+        }
+
+        function scheduleBridgeFeeEstimate() {
+            if (bridgeFeeEstimateDebounce) clearTimeout(bridgeFeeEstimateDebounce);
+            bridgeFeeEstimateDebounce = setTimeout(() => {
+                estimateBridgeFeeXdcToCelo(false);
+            }, 450);
+        }
+
+        function _increaseGasLimitHex(gasHexOrDec, percent = 20) {
+            try {
+                const base = BigInt(gasHexOrDec);
+                const boosted = base + (base * BigInt(percent) / 100n);
+                return ethers.toBeHex(boosted);
+            } catch {
+                return null;
+            }
+        }
+
+        async function estimateBridgeFeeXdcToCelo(showSuccessAlert = true) {
+            const amountStr = (document.getElementById('bridgeAmountXdcToCelo').value || '').trim() || '1';
+            const btn = document.getElementById('btnBridgeEstimateFee');
+            const feeInput = document.getElementById('bridgeFeeXdcToCelo');
+            const feeSourceEl = document.getElementById('bridgeFeeSource');
+            if (!btn || !feeInput || !feeSourceEl) return;
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-inline"></span> Estimating...';
+            try {
+                const res = await fetch(`/api/xdc/bridge/estimate-fee?amount=${encodeURIComponent(amountStr)}`);
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    throw new Error(data.error || 'Fee estimation failed');
+                }
+
+                const recommendedFeeXdc = parseFloat(
+                    data.recommended_bridge_fee_xdc ?? data.bridge_fee_xdc ?? '0'
+                );
+                const baseEstimatedFeeXdc = parseFloat(
+                    data.estimated_bridge_fee_xdc ?? data.bridge_fee_xdc ?? '0'
+                );
+                const feeXdc = Number.isFinite(recommendedFeeXdc) && recommendedFeeXdc > 0
+                    ? recommendedFeeXdc
+                    : baseEstimatedFeeXdc;
+                const recommendedWei = data.recommended_bridge_fee_wei || data.bridge_fee_wei || null;
+                if (recommendedWei) {
+                    bridgeRecommendedFeeWei = recommendedWei;
+                    feeInput.dataset.autofilledWei = recommendedWei;
+                    feeInput.value = ethers.formatUnits(BigInt(recommendedWei), 18);
+                } else if (Number.isFinite(feeXdc) && feeXdc > 0) {
+                    feeInput.value = feeXdc.toString();
+                    bridgeRecommendedFeeWei = null;
+                    feeInput.dataset.autofilledWei = '';
+                }
+                updateBridgeSummary();
+                feeSourceEl.textContent = data.source === 'goodserver_estimatefees'
+                    ? 'goodserver estimatefees (+ safety buffer)'
+                    : 'fallback default (manual check recommended)';
+                bridgeFeeSourceState = data.source || 'manual';
+                if (showSuccessAlert) {
+                    showBridgeAlert('alert-success', `✅ Estimated bridge fee: ${feeInput.value} XDC`);
+                }
+            } catch (err) {
+                updateBridgeSummary();
+                feeSourceEl.textContent = 'manual';
+                bridgeFeeSourceState = 'manual';
+                if (showSuccessAlert) {
+                    showBridgeAlert('alert-error', '❌ Could not estimate fee automatically. You may still enter fee manually.');
+                }
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Estimate Fee';
+            }
+        }
+
+        function setXswapDirection(direction) {
+            xswapDirection = direction;
+            xswapQuoteReady = false;
+            xswapQuoteData = null;
+            const preview = document.getElementById('xswapPreview');
+            if (preview) preview.style.display = 'none';
+            document.getElementById('xswapDirGDtoXDC').classList.toggle('active', direction === 'GD_TO_XDC');
+            document.getElementById('xswapDirXDCtoGD').classList.toggle('active', direction === 'XDC_TO_GD');
+        }
+
+        function setXswapMax() {
+            const amountEl = document.getElementById('xswapAmountIn');
+            const gdText = (document.getElementById('gdXdcBalance').textContent || '0').replace(/[^\d.]/g, '');
+            const gdBal = parseFloat(gdText || '0') || 0;
+            const max = xswapDirection === 'XDC_TO_GD'
+                ? Math.max(0, (xdcBalanceVal || 0) - 0.01)
+                : Math.max(0, gdBal);
+            amountEl.value = max > 0 ? max.toFixed(6) : '0';
+            xswapQuoteReady = false;
+        }
+
+        function _xswapPath() {
+            return xswapDirection === 'GD_TO_XDC'
+                ? [XDC_GD_TOKEN, WXDC_ADDRESS]
+                : [WXDC_ADDRESS, XDC_GD_TOKEN];
+        }
+
+        async function _xswapReadProvider() {
+            if (!useServerSigning) {
+                const ep = _getEthProvider();
+                if (ep) return new ethers.BrowserProvider(ep);
+            }
+            return new ethers.JsonRpcProvider('https://erpc.xinfin.network');
+        }
+
+        // Returns a wei-denominated gas reserve for the bridgeTo() call (and
+        // the optional preceding approve() when allowance < amount), sized
+        // against the live `eth_gasPrice` so the preflight matches what the
+        // user's wallet will actually quote at signing time. Mirrors the
+        // _estimateCeloBridgeGasReserveWei() helper in swap.html so the
+        // two bridge directions surface the same itemized error.
+        async function _estimateXdcBridgeGasReserveWei(provider, fromAddr, amountWei, feeWei, needsApprove) {
+            const fallbackWei = ethers.parseUnits(String(XDC_TO_CELO_GAS_RESERVE_FALLBACK_XDC), 18);
+            const floorWei    = ethers.parseUnits(String(XDC_TO_CELO_GAS_RESERVE_FLOOR_XDC), 18);
+            try {
+                let gasPriceWei = 0n;
+                try {
+                    const feeData = await provider.getFeeData();
+                    if (feeData?.maxFeePerGas && feeData.maxFeePerGas > 0n) {
+                        gasPriceWei = feeData.maxFeePerGas;
+                    } else if (feeData?.gasPrice && feeData.gasPrice > 0n) {
+                        gasPriceWei = feeData.gasPrice;
+                    }
+                } catch (_) { /* fall through */ }
+                if (gasPriceWei === 0n) {
+                    try {
+                        const hex = await provider.send('eth_gasPrice', []);
+                        if (typeof hex === 'string' && hex.startsWith('0x')) {
+                            gasPriceWei = BigInt(hex);
+                        }
+                    } catch (_) { /* fall through */ }
+                }
+                if (gasPriceWei === 0n) {
+                    return needsApprove
+                        ? ((fallbackWei * 11500n) / 10000n)
+                        : fallbackWei;
+                }
+
+                let bridgeGasUnits = XDC_TO_CELO_BRIDGE_TO_GAS_LIMIT;
+                try {
+                    const bridgeIface = new ethers.Interface(BRIDGE_ABI);
+                    const callData = bridgeIface.encodeFunctionData('bridgeTo', [
+                        fromAddr,
+                        CELO_CHAIN_ID,
+                        amountWei,
+                        BRIDGE_SERVICE_LAYERZERO,
+                    ]);
+                    const estimated = await provider.estimateGas({
+                        from: fromAddr,
+                        to: XDC_CELO_BRIDGE,
+                        data: callData,
+                        value: feeWei,
+                    });
+                    if (estimated && estimated > 0n) {
+                        const padded = (estimated * (10000n + XDC_TO_CELO_ESTIMATE_PAD_BPS)) / 10000n;
+                        // Don't go below the realistic worst case — we've
+                        // seen ~470k gas on Celo mainnet for the same
+                        // bridgeTo() call shape, so 500k floor catches
+                        // chain conditions where eth_estimateGas slightly
+                        // under-counts on XDC.
+                        bridgeGasUnits = padded > XDC_TO_CELO_BRIDGE_TO_GAS_LIMIT ? padded : XDC_TO_CELO_BRIDGE_TO_GAS_LIMIT;
+                    }
+                } catch (_) { /* keep static gas limit */ }
+
+                let totalGasUnits = bridgeGasUnits;
+                if (needsApprove) totalGasUnits += XDC_TO_CELO_APPROVE_GAS_LIMIT;
+
+                const rawCostWei = totalGasUnits * gasPriceWei;
+                const buffered   = (rawCostWei * (10000n + XDC_TO_CELO_GAS_RESERVE_BUFFER_BPS)) / 10000n;
+                return buffered > floorWei ? buffered : floorWei;
+            } catch (_) {
+                return fallbackWei;
+            }
+        }
+
+        async function quoteXswap() {
+            clearXswapAlert();
+            const amountStr = document.getElementById('xswapAmountIn').value.trim();
+            const slippagePct = parseFloat(document.getElementById('xswapSlippage').value || '1');
+            if (!amountStr || parseFloat(amountStr) <= 0) return showXswapAlert('alert-error', '❌ Enter a valid amount to quote.');
+            if (!Number.isFinite(slippagePct) || slippagePct < 0.1 || slippagePct > 20) {
+                return showXswapAlert('alert-error', '❌ Slippage must be between 0.1% and 20%.');
+            }
+
+            const quoteBtn = document.getElementById('btnXswapQuote');
+            quoteBtn.disabled = true;
+            quoteBtn.innerHTML = '<span class="spinner-inline"></span> Quoting...';
+            try {
+                const provider = await _xswapReadProvider();
+                const router = new ethers.Contract(XSWAP_V2_ROUTER, XSWAP_ROUTER_ABI, provider);
+                const amountInWei = ethers.parseUnits(amountStr, 18);
+                const path = _xswapPath();
+                const amounts = await router.getAmountsOut(amountInWei, path);
+                const amountOutWei = amounts[amounts.length - 1];
+                const bps = BigInt(Math.floor(slippagePct * 100));
+                const minOutWei = amountOutWei * (10000n - bps) / 10000n;
+
+                const outSymbol = xswapDirection === 'GD_TO_XDC' ? 'XDC' : 'G$';
+                const inSymbol = xswapDirection === 'GD_TO_XDC' ? 'G$' : 'XDC';
+                document.getElementById('xswapRoute').textContent = `${inSymbol} → WXDC → ${outSymbol}`;
+                document.getElementById('xswapEstimatedOut').textContent = `${parseFloat(ethers.formatUnits(amountOutWei, 18)).toFixed(6)} ${outSymbol}`;
+                document.getElementById('xswapMinOut').textContent = `${parseFloat(ethers.formatUnits(minOutWei, 18)).toFixed(6)} ${outSymbol}`;
+                document.getElementById('xswapPreview').style.display = 'block';
+
+                xswapQuoteData = { amountInWei, minOutWei, path };
+                xswapQuoteReady = true;
+                showXswapAlert('alert-success', '✅ Quote ready. Review min output, then click Swap Now.');
+            } catch (err) {
+                showXswapAlert('alert-error', '❌ Quote failed: ' + (err.message || 'No route / low liquidity.'));
+            } finally {
+                quoteBtn.disabled = false;
+                quoteBtn.innerHTML = 'Get Quote';
+            }
+        }
+
+        async function _sendXswapTx({ to, data, valueHex = '0x0', fallbackGasLimit = null }) {
+            if (useServerSigning) {
+                const res = await fetch('/api/server/sign-tx', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ to, data, value: valueHex, chain_id: XDC_CHAIN_ID, wait_receipt: true })
+                });
+                const d = await res.json();
+                if (!d.success) {
+                    const reason = d.error || 'Server-side transaction failed';
+                    const hashHint = d.tx_hash ? ` Hash: ${d.tx_hash}.` : '';
+                    throw new Error(`${reason}.${hashHint}`.trim());
+                }
+                return d.tx_hash;
+            }
+
+            const ep = _getEthProvider();
+            if (!ep) throw new Error('No Web3 wallet found.');
+            const switched = await ensureXDCNetwork(ep);
+            if (!switched) throw new Error('Could not switch to XDC network.');
+            const accounts = await ep.request({ method: 'eth_requestAccounts' });
+            const from = accounts[0];
+            if (!from) throw new Error('No wallet account found.');
+            if (WALLET && normalizeAddr(from).toLowerCase() !== normalizeAddr(WALLET).toLowerCase()) {
+                throw new Error('Wrong wallet connected. Please switch to your GoodMarket wallet.');
+            }
+            const txParams = { from, to, data, value: valueHex, chainId: XDC_CHAIN_ID_HEX };
+            try {
+                const gasEstimate = await ep.request({ method: 'eth_estimateGas', params: [txParams] });
+                const boostedGas = _increaseGasLimitHex(gasEstimate, 20);
+                if (boostedGas) txParams.gas = boostedGas;
+            } catch (estimateErr) {
+                const msg = (estimateErr?.message || '').toLowerCase();
+                if (msg.includes('insufficient funds')) {
+                    throw new Error('Insufficient XDC for transaction value + network gas. Please top up XDC and retry.');
+                }
+                if (fallbackGasLimit) {
+                    const fallbackHex = ethers.toBeHex(BigInt(fallbackGasLimit));
+                    txParams.gas = fallbackHex;
+                    console.warn('eth_estimateGas failed, using fallback gas limit', {
+                        to,
+                        fallbackGasLimit,
+                        estimateError: estimateErr?.message || estimateErr
+                    });
+                    if (bridgeAttemptContext) {
+                        await _bridgeDebugLog('wallet_estimate_gas_fallback', {
+                            wallet_provider: _providerLabel(ep),
+                            to,
+                            value_hex: valueHex,
+                            data_prefix: String(data || '').slice(0, 18),
+                            fallback_gas_limit: fallbackGasLimit,
+                            estimate_error: estimateErr?.message || String(estimateErr || '')
+                        });
+                    }
+                } else {
+                    throw new Error(
+                        'Could not estimate network fee from wallet for this transaction. ' +
+                        'Please retry, or increase XDC slightly if your wallet still rejects it.'
+                    );
+                }
+            }
+
+            const txHash = await ep.request({ method: 'eth_sendTransaction', params: [txParams] });
+            await _waitForXdcTxReceipt(ep, txHash);
+            return txHash;
+        }
+
+        async function _waitForXdcTxReceipt(ep, txHash, { timeoutMs = 180000, pollMs = 2500 } = {}) {
+            const start = Date.now();
+            while ((Date.now() - start) < timeoutMs) {
+                const receipt = await ep.request({ method: 'eth_getTransactionReceipt', params: [txHash] });
+                if (receipt) {
+                    const statusHex = String(receipt.status || '').toLowerCase();
+                    const successStatuses = new Set(['0x1', '1']);
+                    if (!successStatuses.has(statusHex)) {
+                        let cleanReason = 'Transaction reverted on XDC.';
+                        let technicalDetails = '';
+                        let errorCategory = null;
+                        let bridgeContext = null;
+                        try {
+                            const reasonRes = await fetch(`/api/xdc/tx-revert-reason/${encodeURIComponent(txHash)}`);
+                            const reasonData = await reasonRes.json();
+                            if (reasonRes.ok && reasonData) {
+                                if (reasonData.reason) cleanReason = reasonData.reason;
+                                if (reasonData.error_category) errorCategory = reasonData.error_category;
+                                if (reasonData.bridge_context) bridgeContext = reasonData.bridge_context;
+                                if (reasonData.technical_details) {
+                                    technicalDetails = reasonData.technical_details;
+                                } else if (reasonData.error_selector) {
+                                    technicalDetails = `Bridge custom error (${reasonData.error_selector})`;
+                                }
+                            }
+                        } catch (_ignore) {}
+                        const selectorFromTechnical = (technicalDetails || "").match(/0x[a-f0-9]{8}/i)?.[0]?.toLowerCase() || null;
+                        const selectorValue = selectorFromTechnical || null;
+                        const sourceToken = bridgeAttemptContext?.source_token || 'n/a';
+                        const targetToken = bridgeAttemptContext?.target_token || 'n/a';
+                        const attemptedAmount = bridgeAttemptContext?.attempted_amount || 'n/a';
+                        const txHashValue = txHash || 'n/a';
+                        const supportDetails = [
+                            `source token: ${sourceToken}`,
+                            `target token: ${targetToken}`,
+                            `attempted amount: ${attemptedAmount}`,
+                            `selector: ${selectorValue || 'n/a'}`,
+                            `category: ${errorCategory || 'n/a'}`,
+                            `tx hash: ${txHashValue}`,
+                        ];
+                        if (bridgeContext && bridgeContext.amount_gd) {
+                            supportDetails.push(`decoded amount (wei): ${bridgeContext.amount_wei}`);
+                            supportDetails.push(`decoded amount (G$): ${bridgeContext.amount_gd}`);
+                            supportDetails.push(`decoded target chain: ${bridgeContext.target_chain_id}`);
+                        }
+                        const isSelectorOnly = Boolean(
+                            selectorValue &&
+                            (!cleanReason || cleanReason === 'Transaction reverted on XDC.')
+                        );
+                        const selectorMessageMap = {
+                            '0x10ecdf44': 'Bridge fee is likely below current route requirement (this is usually not an XDC wallet-balance issue). Refresh fee and retry with a slightly higher XDC fee.',
+                            '0x92a27eac': 'Bridge fee is lower than current LayerZero requirement (wallet balance may still be sufficient). Increase fee and retry.',
+                            '0x2e9394cc': 'Bridge fee was missing/too low for this route attempt. Increase bridge fee and retry.',
+                            '0xc5426f8d': 'Bridge route appears paused/closed right now. Retry later.',
+                            '0x068a5053': 'Selected target chain appears unsupported by the route right now.',
+                            '0x2c863d26': 'Token transferFrom failed. Check G$ allowance and balance.',
+                            '0x76420e1d': 'Token transfer failed. Check token and bridge route state.',
+                        };
+                        const mappedReason = selectorValue ? selectorMessageMap[selectorValue] : null;
+                        const friendlyReason = mappedReason || (isSelectorOnly
+                            ? 'Bridge could not process this transfer. Please confirm bridge amount and token pair (XDC G$ → Celo G$), then try again.'
+                            : cleanReason);
+                        await _bridgeDebugLog('tx_revert_decoded', {
+                            tx_hash: txHashValue,
+                            selector: selectorValue,
+                            reason: cleanReason,
+                            category: errorCategory,
+                            bridge_context: bridgeContext,
+                            support_details: supportDetails
+                        });
+                        const retryGuide = `
+                            <br><br><strong>Recommended retries:</strong><br>
+                            • Amount ladder: retry at 75%, then 50%, then 25% of current amount.<br>
+                            • Fee ladder: ${bridgeFeeSourceState === 'fallback_default' ? 'start at fallback +10%' : 'start at current fee +10%'}; then +20%; then +35%.<br>
+                            • Keep at least 0.0015 XDC extra for gas reserve.
+                        `;
+                        const detailsBlock = supportDetails.length
+                            ? `<br><br><details><summary><strong>Support details (for CS/debug)</strong></summary><div style="margin-top:6px;">${supportDetails.join('<br>')}</div></details>`
+                            : '';
+                        throw new Error(`${friendlyReason}${retryGuide}${detailsBlock}`);
+                    }
+                    return receipt;
+                }
+                await new Promise((resolve) => setTimeout(resolve, pollMs));
+            }
+            throw new Error(
+                `Transaction was sent but not mined yet after ${Math.floor(timeoutMs / 1000)}s. ` +
+                `Please check XDCScan: ${txHash}`
+            );
+        }
+
+        async function executeXswap() {
+            clearXswapAlert();
+            if (!xswapQuoteReady || !xswapQuoteData) return showXswapAlert('alert-error', '❌ Please click Get Quote first.');
+
+            const deadlineMin = parseInt(document.getElementById('xswapDeadline').value || '20', 10);
+            if (!Number.isFinite(deadlineMin) || deadlineMin < 1 || deadlineMin > 120) {
+                return showXswapAlert('alert-error', '❌ Deadline must be between 1 and 120 minutes.');
+            }
+
+            const btn = document.getElementById('btnXswapExec');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-inline"></span> Preparing...';
+            try {
+                const routerIface = new ethers.Interface(XSWAP_ROUTER_ABI);
+                const erc20Iface = new ethers.Interface(ERC20_ABI);
+                const deadline = Math.floor(Date.now() / 1000) + deadlineMin * 60;
+                const toAddr = normalizeAddr(WALLET);
+                let txHash;
+
+                if (xswapDirection === 'XDC_TO_GD') {
+                    btn.innerHTML = '<span class="spinner-inline"></span> Confirm swap...';
+                    const data = routerIface.encodeFunctionData('swapExactETHForTokens', [xswapQuoteData.minOutWei, xswapQuoteData.path, toAddr, deadline]);
+                    txHash = await _sendXswapTx({ to: XSWAP_V2_ROUTER, data, valueHex: ethers.toBeHex(xswapQuoteData.amountInWei) });
+                } else {
+                    btn.innerHTML = '<span class="spinner-inline"></span> Checking allowance...';
+                    const readProvider = await _xswapReadProvider();
+                    const gd = new ethers.Contract(XDC_GD_TOKEN, ERC20_ABI, readProvider);
+                    const allowance = await gd.allowance(toAddr, XSWAP_V2_ROUTER);
+                    if (allowance < xswapQuoteData.amountInWei) {
+                        btn.innerHTML = '<span class="spinner-inline"></span> Approving G$...';
+                        // Plain-language preview before opening the wallet, so a
+                        // compromised frontend can't trick the user into signing
+                        // something they didn't expect.
+                        try {
+                            await GMTxPreview.confirm({
+                                action: 'approve',
+                                token: 'G$ (XDC)',
+                                amount: ethers.formatUnits(xswapQuoteData.amountInWei, 18),
+                                to: XSWAP_V2_ROUTER,
+                                toLabel: 'XSwap V2 Router',
+                                network: 'XDC',
+                                note: 'Lets the router pull exactly this amount from your wallet for the next swap.',
+                            });
+                        } catch (err) {
+                            if (GMTxPreview.isCancelled(err)) {
+                                btn.disabled = false;
+                                btn.innerHTML = 'Swap Now';
+                                return;
+                            }
+                            throw err;
+                        }
+                        // Exact-amount approval (not unlimited): only authorise the
+                        // router to pull what this swap actually needs. Trade-off is
+                        // the user re-approves on every swap, but a frontend or
+                        // dependency compromise can't drain a future allowance.
+                        const approveData = erc20Iface.encodeFunctionData('approve', [XSWAP_V2_ROUTER, xswapQuoteData.amountInWei]);
+                        await _sendXswapTx({ to: XDC_GD_TOKEN, data: approveData });
+                    }
+
+                    btn.innerHTML = '<span class="spinner-inline"></span> Confirm swap...';
+                    const data = routerIface.encodeFunctionData('swapExactTokensForETH', [
+                        xswapQuoteData.amountInWei,
+                        xswapQuoteData.minOutWei,
+                        xswapQuoteData.path,
+                        toAddr,
+                        deadline
+                    ]);
+                    txHash = await _sendXswapTx({ to: XSWAP_V2_ROUTER, data });
+                }
+
+                xswapQuoteReady = false;
+                showXswapAlert('alert-success',
+                    `✅ Swap submitted successfully!<br><a class="tx-link" href="https://xdcscan.com/tx/${txHash}" target="_blank" rel="noopener">View on XDCScan ↗ ${txHash.substring(0,10)}...${txHash.slice(-8)}</a>`
+                );
+                setTimeout(() => { loadBalances(); loadGDInfo(); loadHistory(); }, 3500);
+            } catch (err) {
+                let msg = err.message || 'Swap failed';
+                if (err.code === 4001) msg = 'Swap rejected by user.';
+                showXswapAlert('alert-error', '❌ ' + msg);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Swap Now';
+            }
+        }
+
+        async function bridgeXdcToCelo() {
+            clearBridgeAlert();
+            const btn = document.getElementById('btnBridgeXdcToCelo');
+            const amountStr = (document.getElementById('bridgeAmountXdcToCelo').value || '').trim();
+            const feeStr = (document.getElementById('bridgeFeeXdcToCelo').value || '').trim();
+            const sourceToken = 'XDC G$';
+            const targetToken = 'Celo G$';
+
+            if (!amountStr || parseFloat(amountStr) <= 0) {
+                return showBridgeAlert('alert-error', '❌ Enter a valid bridge amount.');
+            }
+            // GoodMarket-side minimum gate, mirrors the Celo → XDC tab so the
+            // two bridge directions stay UX-aligned. Reject *before* any
+            // wallet interaction so the user sees a clean app-side alert
+            // instead of an approve they can't redeem.
+            const _enteredAmountGd = parseFloat(amountStr);
+            if (Number.isFinite(_enteredAmountGd) && _enteredAmountGd < XDC_TO_CELO_UI_MIN_AMOUNT_GD) {
+                return showBridgeAlert(
+                    'alert-error',
+                    `❌ You don't have enough G$ to bridge. ` +
+                    `Minimum is ${XDC_TO_CELO_UI_MIN_AMOUNT_GD.toLocaleString()} G$ per transaction — ` +
+                    `you entered ${_enteredAmountGd.toLocaleString(undefined,{maximumFractionDigits:2})} G$.`
+                );
+            }
+            if (!feeStr || parseFloat(feeStr) <= 0) {
+                return showBridgeAlert('alert-error', '❌ Enter a valid bridge fee in XDC.');
+            }
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-inline"></span> Preparing...';
+
+            try {
+                const amountWei = ethers.parseUnits(amountStr, 18);
+                const feeInputEl = document.getElementById('bridgeFeeXdcToCelo');
+                let feeWei = ethers.parseUnits(feeStr, 18);
+                const autofilledFeeWei = feeInputEl?.dataset?.autofilledWei ? BigInt(feeInputEl.dataset.autofilledWei) : null;
+                if (autofilledFeeWei && feeWei <= autofilledFeeWei) {
+                    // Protect against browser number-input precision truncation.
+                    const diffWei = autofilledFeeWei - feeWei;
+                    if (diffWei <= 1000000000000n) { // <= 0.000001 XDC
+                        feeWei = autofilledFeeWei;
+                    }
+                }
+                const feeXdc = parseFloat(feeStr);
+                const grossReceive = parseFloat(amountStr) || 0;
+                const netReceive = grossReceive;
+                const toAddr = normalizeAddr(WALLET);
+                let preflightWarning = '';
+                bridgeAttemptContext = {
+                    attempt_id: (window.crypto?.randomUUID ? window.crypto.randomUUID() : `attempt-${Date.now()}`),
+                    source_token: sourceToken,
+                    target_token: targetToken,
+                    attempted_amount: _fmtBridgeAmount(grossReceive),
+                    tx_hash: null,
+                    entered_fee_xdc: feeXdc,
+                    entered_fee_wei: feeWei.toString(),
+                    effective_fee_xdc: feeXdc,
+                    effective_fee_wei: feeWei.toString(),
+                    preflight_attempts: []
+                };
+                await _bridgeDebugLog('bridge_start', {
+                    amount_input: amountStr,
+                    amount_wei: amountWei.toString(),
+                    entered_fee_xdc: feeXdc,
+                    entered_fee_wei: feeWei.toString(),
+                    bridge_contract: XDC_CELO_BRIDGE,
+                    source_chain_id: XDC_CHAIN_ID,
+                    target_chain_id: CELO_CHAIN_ID,
+                    fee_source_state: bridgeFeeSourceState
+                });
+
+                if (bridgeFeeSourceState === 'fallback_default' && feeXdc <= BRIDGE_FALLBACK_FEE_XDC_TO_CELO) {
+                    preflightWarning =
+                        `⚠️ Using fallback fee (${BRIDGE_FALLBACK_FEE_XDC_TO_CELO.toFixed(6)} XDC). ` +
+                        'If wallet shows a network fee warning, raise the bridge fee slightly and retry.';
+                }
+
+                const erc20Iface = new ethers.Interface(ERC20_ABI);
+                const bridgeIface = new ethers.Interface(BRIDGE_ABI);
+                const readProvider = await _xswapReadProvider();
+                const gd = new ethers.Contract(XDC_GD_TOKEN, ERC20_ABI, readProvider);
+                const sourceBridge = new ethers.Contract(XDC_CELO_BRIDGE, BRIDGE_ABI, readProvider);
+
+                btn.innerHTML = '<span class="spinner-inline"></span> Checking bridge limits...';
+                try {
+                    const sourceCanBridge = await sourceBridge.canBridge(toAddr, amountWei);
+                    if (!sourceCanBridge) {
+                        throw new Error(
+                            'Source-chain bridge preflight failed (canBridge=false). Lower amount or retry later.'
+                        );
+                    }
+                } catch (limitErr) {
+                    const limitMessage = limitErr?.message || String(limitErr || '');
+                    if (limitMessage.toLowerCase().includes('returned false')) {
+                        throw limitErr;
+                    }
+                    throw new Error('Could not verify bridge limits on source bridge. Please retry in a moment.');
+                }
+
+                if (!useServerSigning) {
+                    const ep = _getEthProvider();
+                    if (!ep) throw new Error('No Web3 wallet found.');
+                    const switched = await ensureXDCNetwork(ep);
+                    if (!switched) throw new Error('Could not switch to XDC network.');
+                    const accounts = await ep.request({ method: 'eth_requestAccounts' });
+                    const from = accounts[0] ? normalizeAddr(accounts[0]) : null;
+                    if (!from) throw new Error('No wallet account found.');
+                    if (WALLET && from.toLowerCase() !== normalizeAddr(WALLET).toLowerCase()) {
+                        throw new Error('Wrong wallet connected. Please switch to your GoodMarket wallet.');
+                    }
+
+                    // Read allowance up-front so the gas reserve can include
+                    // the approve gas only when an approve will actually be
+                    // submitted, mirroring _estimateCeloBridgeGasReserveWei
+                    // in swap.html.
+                    const preflightAllowance = await gd.allowance(from, XDC_CELO_BRIDGE);
+                    const needsApproveTx = preflightAllowance < amountWei;
+
+                    // Read G$ balance before native-balance check so the
+                    // user gets the most actionable error first ("you don't
+                    // have enough G$" beats "you don't have enough XDC for
+                    // gas" when both are true). Mirrors swap.html.
+                    const gdBalWei = await gd.balanceOf(from);
+                    if (gdBalWei < amountWei) {
+                        const haveGd = parseFloat(ethers.formatUnits(gdBalWei, 18));
+                        throw new Error(
+                            `Not enough G$ on XDC. ` +
+                            `You have ${haveGd.toFixed(2)} G$ but tried to bridge ${parseFloat(amountStr).toFixed(2)} G$.`
+                        );
+                    }
+
+                    const dynamicGasReserveWei = await _estimateXdcBridgeGasReserveWei(
+                        readProvider,
+                        from,
+                        amountWei,
+                        feeWei,
+                        needsApproveTx
+                    );
+                    const onchainBalWei = await readProvider.getBalance(from);
+                    const liveMinimumRequiredWei = feeWei + dynamicGasReserveWei;
+                    if (onchainBalWei < liveMinimumRequiredWei) {
+                        const needXdc  = parseFloat(ethers.formatUnits(liveMinimumRequiredWei, 18));
+                        const hasXdc   = parseFloat(ethers.formatUnits(onchainBalWei, 18));
+                        const feeXdcF  = parseFloat(ethers.formatUnits(feeWei, 18));
+                        const gasXdcF  = parseFloat(ethers.formatUnits(dynamicGasReserveWei, 18));
+                        const shortXdc = Math.max(0, needXdc - hasXdc);
+                        const gasNote  = needsApproveTx ? 'approve + bridge gas' : 'bridge gas';
+                        throw new Error(
+                            `Not enough XDC for the bridge. ` +
+                            `Need ≈ ${needXdc.toFixed(6)} XDC ` +
+                            `(LayerZero fee ${feeXdcF.toFixed(6)} + ${gasNote} ≈ ${gasXdcF.toFixed(6)}), ` +
+                            `but wallet has ${hasXdc.toFixed(6)} XDC. ` +
+                            `Add about ${shortXdc.toFixed(4)} more XDC and retry.`
+                        );
+                    }
+                    const preflightData = bridgeIface.encodeFunctionData('bridgeTo', [
+                        toAddr,
+                        CELO_CHAIN_ID,
+                        amountWei,
+                        BRIDGE_SERVICE_LAYERZERO
+                    ]);
+                    const preflightMultipliers = [1.00, 1.15, 1.30];
+                    let effectiveFeeWei = feeWei;
+                    let preflightPassed = false;
+                    let lastPreflightMsg = '';
+
+                    for (const multiplier of preflightMultipliers) {
+                        const candidateFeeWei = multiplier === 1
+                            ? feeWei
+                            : (feeWei * BigInt(Math.round(multiplier * 100)) / 100n);
+                        try {
+                            await ep.request({
+                                method: 'eth_estimateGas',
+                                params: [{
+                                    from,
+                                    to: XDC_CELO_BRIDGE,
+                                    data: preflightData,
+                                    value: ethers.toBeHex(candidateFeeWei),
+                                    chainId: XDC_CHAIN_ID_HEX
+                                }]
+                            });
+                            bridgeAttemptContext.preflight_attempts.push({
+                                multiplier,
+                                ok: true,
+                                candidate_fee_wei: candidateFeeWei.toString()
+                            });
+                            effectiveFeeWei = candidateFeeWei;
+                            preflightPassed = true;
+                            break;
+                        } catch (attemptErr) {
+                            const attemptMsg = attemptErr?.message || String(attemptErr || '');
+                            const attemptMsgLower = attemptMsg.toLowerCase();
+                            const selectorMatch = attemptMsgLower.match(/0x[a-f0-9]{8}/);
+                            bridgeAttemptContext.preflight_attempts.push({
+                                multiplier,
+                                ok: false,
+                                candidate_fee_wei: candidateFeeWei.toString(),
+                                selector: selectorMatch ? selectorMatch[0] : null,
+                                error: attemptMsg.slice(0, 280)
+                            });
+                            await _bridgeDebugLog('preflight_attempt', {
+                                multiplier,
+                                candidate_fee_wei: candidateFeeWei.toString(),
+                                selector: selectorMatch ? selectorMatch[0] : null,
+                                error: attemptMsg.slice(0, 280),
+                                wallet_provider: _providerLabel(ep)
+                            });
+                            lastPreflightMsg = attemptMsg;
+                        }
+                    }
+
+                    if (!preflightPassed) {
+                        const msgLower = lastPreflightMsg.toLowerCase();
+                        if (
+                            msgLower.includes('0x10ecdf44') ||
+                            msgLower.includes('0x92a27eac') ||
+                            msgLower.includes('0x2e9394cc')
+                        ) {
+                            throw new Error(
+                                'Bridge pre-check reports route fee is above the current entered fee (even after auto-retry). ' +
+                                'Please refresh estimate and retry with a higher bridge fee.'
+                            );
+                        }
+                        const lowFeeHints = ['revert', 'fee', 'insufficient', 'underpriced', 'lz'];
+                        if (lowFeeHints.some((hint) => msgLower.includes(hint))) {
+                            preflightWarning =
+                                '⚠️ Wallet pre-check could not confirm current LayerZero fee after auto-retries.';
+                        } else {
+                            preflightWarning = '⚠️ Wallet pre-check could not be completed after auto-retries.';
+                        }
+                    }
+
+                    bridgeAttemptContext.effective_fee_wei = effectiveFeeWei.toString();
+                    bridgeAttemptContext.effective_fee_xdc = Number(ethers.formatUnits(effectiveFeeWei, 18));
+                    await _bridgeDebugLog('preflight_summary', {
+                        attempts: bridgeAttemptContext.preflight_attempts,
+                        effective_fee_wei: bridgeAttemptContext.effective_fee_wei,
+                        effective_fee_xdc: bridgeAttemptContext.effective_fee_xdc,
+                        passed: preflightPassed
+                    });
+                    feeWei = effectiveFeeWei;
+                }
+
+                btn.innerHTML = '<span class="spinner-inline"></span> Checking allowance...';
+                const allowance = await gd.allowance(toAddr, XDC_CELO_BRIDGE);
+                if (allowance < amountWei) {
+                    btn.innerHTML = '<span class="spinner-inline"></span> Approving G$...';
+                    try {
+                        await GMTxPreview.confirm({
+                            action: 'approve',
+                            token: 'G$ (XDC)',
+                            amount: ethers.formatUnits(amountWei, 18),
+                            to: XDC_CELO_BRIDGE,
+                            toLabel: 'XDC ↔ Celo Bridge',
+                            network: 'XDC',
+                            note: 'Lets the bridge contract pull exactly this amount for this transfer to Celo.',
+                        });
+                    } catch (err) {
+                        if (GMTxPreview.isCancelled(err)) {
+                            btn.disabled = false;
+                            btn.innerHTML = 'Bridge to Celo';
+                            return;
+                        }
+                        throw err;
+                    }
+                    // Exact-amount approval (not unlimited): bridge only needs the
+                    // amount being bridged right now; a reused/compromised allowance
+                    // would let the bridge contract pull more later.
+                    const approveData = erc20Iface.encodeFunctionData('approve', [XDC_CELO_BRIDGE, amountWei]);
+                    const approveTx = await _sendXswapTx({
+                        to: XDC_GD_TOKEN,
+                        data: approveData,
+                        fallbackGasLimit: 120000
+                    });
+                    showBridgeAlert(
+                        'alert-success',
+                        `✅ Approve submitted.<br><a class="tx-link" href="https://xdcscan.com/tx/${approveTx}" target="_blank" rel="noopener">View approve tx ↗ ${approveTx.substring(0,10)}...${approveTx.slice(-8)}</a>`
+                    );
+                }
+
+                btn.innerHTML = '<span class="spinner-inline"></span> Bridging to Celo...';
+                const bridgeData = bridgeIface.encodeFunctionData('bridgeTo', [
+                    toAddr,
+                    CELO_CHAIN_ID,
+                    amountWei,
+                    BRIDGE_SERVICE_LAYERZERO
+                ]);
+                const bridgeTx = await _sendXswapTx({
+                    to: XDC_CELO_BRIDGE,
+                    data: bridgeData,
+                    valueHex: ethers.toBeHex(feeWei),
+                    fallbackGasLimit: 350000
+                });
+                bridgeAttemptContext.tx_hash = bridgeTx;
+                await _bridgeDebugLog('bridge_submitted', {
+                    tx_hash: bridgeTx,
+                    effective_fee_wei: feeWei.toString(),
+                    effective_fee_xdc: Number(ethers.formatUnits(feeWei, 18))
+                });
+
+                showBridgeAlert(
+                    'alert-success',
+                    `${preflightWarning ? `${preflightWarning}<br>` : ''}✅ Bridge submitted to Celo!<br>
+                    <div style="margin:0.45rem 0 0.35rem; padding:0.45rem 0.55rem; border-radius:8px; border:1px solid rgba(255,255,255,0.14); background:rgba(15,23,42,0.4); color:rgba(255,255,255,0.86); font-size:0.79rem; line-height:1.5;">
+                        <strong>From:</strong> ${sourceToken} (XDC Network)<br>
+                        <strong>To:</strong> ${targetToken} (Celo Mainnet)<br>
+                        <strong>Gross:</strong> ${_fmtBridgeAmount(grossReceive)}<br>
+                        <strong>Fee:</strong> ${_fmtBridgeFeeXdc(Number(ethers.formatUnits(feeWei, 18)))}<br>
+                        <strong>Net Est. Receive:</strong> ${_fmtBridgeAmount(netReceive)}
+                    </div>
+                    <a class="tx-link" href="https://xdcscan.com/tx/${bridgeTx}" target="_blank" rel="noopener">View on XDCScan ↗ ${bridgeTx.substring(0,10)}...${bridgeTx.slice(-8)}</a><br>
+                    <span style="color:rgba(255,255,255,0.7);font-size:0.8rem;">Final mint on Celo may take a few minutes.</span>`
+                );
+                setTimeout(() => { loadBalances(); loadGDInfo(); loadHistory(); }, 4000);
+            } catch (err) {
+                let msg = err.message || 'Bridge failed';
+                if (err.code === 4001) msg = 'Bridge transaction rejected by user.';
+                if (!bridgeAttemptContext) {
+                    bridgeAttemptContext = {
+                        attempt_id: (window.crypto?.randomUUID ? window.crypto.randomUUID() : `attempt-${Date.now()}`),
+                        source_token: sourceToken,
+                        target_token: targetToken,
+                        attempted_amount: _fmtBridgeAmount(parseFloat(amountStr || '0')),
+                        tx_hash: null
+                    };
+                }
+                await _bridgeDebugLog('bridge_failed', {
+                    error: msg,
+                    tx_hash: bridgeAttemptContext.tx_hash || null,
+                    attempted_amount: amountStr,
+                    entered_fee_xdc: feeStr,
+                    effective_fee_wei: bridgeAttemptContext.effective_fee_wei || null,
+                    preflight_attempts: bridgeAttemptContext.preflight_attempts || []
+                });
+                showBridgeAlert('alert-error', '❌ ' + msg);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Bridge to Celo';
+            }
+        }
+
+        async function loadHistory() {
+            const list = document.getElementById('txList');
+            list.innerHTML = '<li class="empty-state"><span class="spinner-inline"></span> Loading...</li>';
+            try {
+                const res = await fetch('/api/xdc/history');
+                const data = await res.json();
+                if (!data.success || !data.transfers || data.transfers.length === 0) {
+                    list.innerHTML = '<li class="empty-state">No XDC transactions found.</li>';
+                    return;
+                }
+                list.innerHTML = '';
+                data.transfers.forEach(tx => {
+                    const dir = tx.direction;
+                    const counterpart = dir === 'sent' ? tx.to : tx.from;
+                    const shortAddr = counterpart ? counterpart.substring(0,8) + '...' + counterpart.slice(-6) : '—';
+                    const iconChar = dir === 'sent' ? '↑' : '↓';
+                    const li = document.createElement('li');
+                    li.className = 'tx-item';
+                    li.innerHTML = `
+                        <div class="tx-icon ${dir}">${iconChar}</div>
+                        <div class="tx-meta">
+                            <div class="tx-dir ${dir}">${dir === 'sent' ? 'Sent' : 'Received'}</div>
+                            <div class="tx-addr">${dir === 'sent' ? 'To: ' : 'From: '}${shortAddr}</div>
+                            <div class="tx-time">${tx.timestamp || 'Block #' + tx.block}</div>
+                        </div>
+                        <div>
+                            <div class="tx-amount ${dir}">${dir === 'sent' ? '−' : '+'}${tx.amount_formatted}</div>
+                            ${tx.tx_hash ? `<a class="tx-hash-link" href="${tx.explorer_url}" target="_blank" rel="noopener">View ↗</a>` : ''}
+                        </div>
+                    `;
+                    list.appendChild(li);
+                });
+            } catch (e) {
+                list.innerHTML = '<li class="empty-state">Failed to load history.</li>';
+            }
+        }
+
+        function switchTab(token) {
+            document.getElementById('formXDC').style.display   = token === 'XDC'   ? 'block' : 'none';
+            document.getElementById('formXUSDT').style.display = token === 'XUSDT' ? 'block' : 'none';
+            document.getElementById('tabXDC').classList.toggle('active',   token === 'XDC');
+            document.getElementById('tabXUSDT').classList.toggle('active', token === 'XUSDT');
+        }
+
+        function setMax(token) {
+            if (token === 'XDC') {
+                const reserved = 0.01;
+                const max = Math.max(0, xdcBalanceVal - reserved);
+                document.getElementById('xdcAmount').value = max > 0 ? max.toFixed(6) : '';
+            } else if (token === 'XUSDT') {
+                document.getElementById('xusdtAmount').value = xusdtBalanceVal > 0 ? xusdtBalanceVal.toFixed(6) : '';
+            }
+        }
+
+        function showAlert(id, type, html) {
+            const el = document.getElementById(id);
+            el.className = `alert ${type} show`;
+            el.innerHTML = html;
+        }
+        function clearAlert(id) {
+            const el = document.getElementById(id);
+            el.className = 'alert';
+            el.innerHTML = '';
+        }
+
+        async function ensureXDCNetwork(ep) {
+            try {
+                const chainId = await ep.request({ method: 'eth_chainId' });
+                if (parseInt(chainId, 16) === XDC_CHAIN_ID) return true;
+
+                try {
+                    await ep.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: XDC_CHAIN_ID_HEX }]
+                    });
+                    return true;
+                } catch (switchErr) {
+                    if (switchErr.code === 4902) {
+                        await ep.request({
+                            method: 'wallet_addEthereumChain',
+                            params: [{
+                                chainId: XDC_CHAIN_ID_HEX,
+                                chainName: 'XDC Network',
+                                rpcUrls: ['https://erpc.xinfin.network'],
+                                nativeCurrency: { name: 'XDC', symbol: 'XDC', decimals: 18 },
+                                blockExplorerUrls: ['https://explorer.xinfin.network']
+                            }]
+                        });
+                        return true;
+                    }
+                    return false;
+                }
+            } catch (e) {
+                return false;
+            }
+        }
+
+        async function autoSwitchToXDCIfOnCelo() {
+            if (useServerSigning) return;
+            const ep = _getEthProvider();
+            if (!ep) return;
+            try {
+                const chainId = await ep.request({ method: 'eth_chainId' });
+                if (parseInt(chainId, 16) !== CELO_CHAIN_ID) return;
+                await ensureXDCNetwork(ep);
+            } catch (_) {
+                // Ignore auto-switch errors; manual switch is still available in UI.
+            }
+        }
+
+        function normalizeAddr(addr) {
+            if (addr.toLowerCase().startsWith('xdc')) return '0x' + addr.slice(3);
+            return addr;
+        }
+
+        async function sendToken(token) {
+            const alertId = token === 'XDC' ? 'alertXDC' : 'alertXUSDT';
+            const btnId   = token === 'XDC' ? 'btnSendXDC' : 'btnSendXUSDT';
+            const toId    = token === 'XDC' ? 'xdcTo' : 'xusdtTo';
+            const amtId   = token === 'XDC' ? 'xdcAmount' : 'xusdtAmount';
+
+            clearAlert(alertId);
+
+            const toRaw  = document.getElementById(toId).value.trim();
+            const amount = document.getElementById(amtId).value.trim();
+            const toAddr = normalizeAddr(toRaw);
+
+            if (!toRaw) {
+                showAlert(alertId, 'alert-error', '❌ Please enter a recipient address');
+                return;
+            }
+            if (!toAddr.startsWith('0x') || toAddr.length !== 42) {
+                showAlert(alertId, 'alert-error', '❌ Invalid address. Use 0x... or xdc... format');
+                return;
+            }
+            if (!amount || parseFloat(amount) <= 0) {
+                showAlert(alertId, 'alert-error', '❌ Please enter a valid amount');
+                return;
+            }
+            if (toAddr.toLowerCase() === normalizeAddr(WALLET).toLowerCase()) {
+                showAlert(alertId, 'alert-error', '❌ Cannot send to your own address');
+                return;
+            }
+
+            const ep = _getEthProvider();
+            if (!ep) {
+                document.getElementById('noWalletWarn').style.display = 'block';
+                showAlert(alertId, 'alert-error', '❌ No Web3 wallet detected. Install MetaMask and add the XDC Network.');
+                return;
+            }
+
+            const btn = document.getElementById(btnId);
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-inline"></span> Preparing...';
+
+            try {
+                btn.innerHTML = '<span class="spinner-inline"></span> Switching to XDC Network...';
+                const switched = await ensureXDCNetwork(ep);
+                if (!switched) {
+                    showAlert(alertId, 'alert-error', '❌ Could not switch to XDC Network. Please switch manually in your wallet.');
+                    btn.disabled = false;
+                    btn.innerHTML = `Send ${token}`;
+                    return;
+                }
+
+                const prepRes = await fetch('/api/xdc/prepare-send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token, to: toRaw, amount })
+                });
+                const txData = await prepRes.json();
+
+                if (!txData.success) {
+                    showAlert(alertId, 'alert-error', '❌ ' + (txData.error || 'Failed to prepare transaction'));
+                    btn.disabled = false;
+                    btn.innerHTML = `Send ${token}`;
+                    return;
+                }
+
+                btn.innerHTML = '<span class="spinner-inline"></span> Requesting wallet...';
+                const accounts = await ep.request({ method: 'eth_requestAccounts' });
+                const from = accounts[0];
+                if (!from) throw new Error('No wallet account found.');
+                if (!useServerSigning && WALLET && normalizeAddr(from).toLowerCase() !== normalizeAddr(WALLET).toLowerCase()) {
+                    throw new Error('Wrong wallet connected. Please switch to your GoodMarket wallet.');
+                }
+
+                btn.innerHTML = '<span class="spinner-inline"></span> Confirm in wallet...';
+                const txParams = {
+                    from,
+                    to: txData.to,
+                    data: txData.data,
+                    value: txData.value,
+                    chainId: XDC_CHAIN_ID_HEX,
+                };
+
+                const txHash = await ep.request({
+                    method: 'eth_sendTransaction',
+                    params: [txParams]
+                });
+
+                showAlert(alertId, 'alert-success',
+                    `✅ Transaction sent!<br>
+                    <a class="tx-link" href="https://explorer.xinfin.network/txs/${txHash}" target="_blank" rel="noopener">
+                        View on XDC Explorer ↗ ${txHash.substring(0,10)}...${txHash.slice(-8)}
+                    </a>`
+                );
+
+                document.getElementById(toId).value = '';
+                document.getElementById(amtId).value = '';
+                setTimeout(() => { loadBalances(); loadHistory(); }, 3000);
+
+            } catch (err) {
+                let msg = err.message || 'Transaction failed';
+                if (err.code === 4001) msg = 'Transaction rejected by user.';
+                showAlert(alertId, 'alert-error', '❌ ' + msg);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `Send ${token}`;
+            }
+        }
+
+        let xdcGdClaimable = 0;
+        let xdcIdentityWhitelisted = false;
+        let _xdcCountdownInterval = null;
+
+        function getNextResetMs() {
+            const now  = new Date();
+            const next = new Date(Date.UTC(
+                now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(),
+                12, 0, 0, 0
+            ));
+            if (now >= next) next.setUTCDate(next.getUTCDate() + 1);
+            return next.getTime() - now.getTime();
+        }
+
+        function formatCountdown(ms) {
+            if (ms <= 0) return '00:00:00';
+            const totalSec = Math.floor(ms / 1000);
+            const h = Math.floor(totalSec / 3600);
+            const m = Math.floor((totalSec % 3600) / 60);
+            const s = totalSec % 60;
+            return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+        }
+
+        function startXDCCountdown() {
+            const box     = document.getElementById('xdcCountdownBox');
+            const display = document.getElementById('xdcCountdownDisplay');
+            if (!box || !display) return;
+            box.style.display = 'block';
+            if (_xdcCountdownInterval) clearInterval(_xdcCountdownInterval);
+            function tick() {
+                const remaining = getNextResetMs();
+                display.textContent = formatCountdown(remaining);
+                if (remaining <= 0) {
+                    clearInterval(_xdcCountdownInterval);
+                    display.textContent = '00:00:00';
+                    document.getElementById('claimXDCAlert').className = 'alert alert-success show';
+                    document.getElementById('claimXDCAlert').textContent = '🎉 Claim window is now open! Refresh to claim.';
+                }
+            }
+            tick();
+            _xdcCountdownInterval = setInterval(tick, 1000);
+        }
+
+        async function loadGDInfo() {
+            try {
+                const res = await fetch('/api/xdc/gd-info');
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!data.success) return;
+
+                const gdBal = data.gd_balance;
+                if (gdBal && gdBal.success) {
+                    document.getElementById('gdXdcBalance').textContent = gdBal.balance.toFixed(2) + ' G$';
+                } else {
+                    document.getElementById('gdXdcBalance').textContent = '0 G$';
+                }
+
+                const identity = data.identity;
+                xdcIdentityWhitelisted = identity && identity.whitelisted;
+
+                const ent = data.entitlement;
+                if (ent && ent.success) {
+                    xdcGdClaimable = ent.claimable || 0;
+                }
+
+                updateClaimUI();
+            } catch (e) {
+                document.getElementById('gdXdcBalance').textContent = '—';
+            }
+        }
+
+        function updateClaimUI() {
+            const notWhitelisted = document.getElementById('xdcNotWhitelisted');
+            const claimInfo = document.getElementById('xdcClaimInfo');
+            const claimAmt = document.getElementById('xdcClaimableAmt');
+            const btn = document.getElementById('btnClaimXDCGD');
+            const btnText = document.getElementById('claimXDCBtnText');
+
+            if (!xdcIdentityWhitelisted) {
+                notWhitelisted.style.display = 'block';
+                claimInfo.style.display = 'none';
+                btn.disabled = true;
+                btn.style.opacity = '0.45';
+                btn.title = 'GoodDollar identity verification required';
+                return;
+            }
+
+            notWhitelisted.style.display = 'none';
+            claimInfo.style.display = 'block';
+
+            if (xdcGdClaimable > 0) {
+                claimAmt.textContent = xdcGdClaimable.toFixed(2) + ' G$';
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                btnText.textContent = '🌟 Claim G$ on XDC';
+            } else {
+                claimAmt.textContent = 'Already claimed today';
+                btn.disabled = true;
+                btn.style.opacity = '0.5';
+                btnText.textContent = '✅ Already Claimed';
+                startXDCCountdown();
+            }
+        }
+
+        async function claimGDonXDC() {
+            const btn = document.getElementById('btnClaimXDCGD');
+            const btnText = document.getElementById('claimXDCBtnText');
+            const alertEl = document.getElementById('claimXDCAlert');
+            const noWallet = document.getElementById('xdcNoWalletInstructions');
+            const setupInstr = document.getElementById('xdcSetupInstructions');
+
+            function setAlert(type, html) {
+                alertEl.className = `alert ${type} show`;
+                alertEl.innerHTML = html;
+            }
+            function clearAlert() {
+                alertEl.className = 'alert';
+                alertEl.innerHTML = '';
+            }
+
+            clearAlert();
+            noWallet.style.display = 'none';
+            setupInstr.style.display = 'none';
+
+            btn.disabled = true;
+
+            // ── Server-signing: server-side signing (no MetaMask needed) ──
+            if (useServerSigning) {
+                btnText.textContent = '⏳ Signing via server...';
+                const XDC_UBI_SCHEME = '0x22867567E2D80f2049200E25C6F31CB6Ec2F0faf';
+                try {
+                    const res = await fetch('/api/server/sign-tx', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ to: XDC_UBI_SCHEME, data: '0x4e71d92d', value: '0x0', chain_id: XDC_CHAIN_ID })
+                    });
+                    const d = await res.json();
+                    if (d.success) {
+                        setAlert('alert-success',
+                            `✅ <strong>G$ claimed on XDC!</strong> ` +
+                            `<a href="https://xdcscan.com/tx/${d.tx_hash}" target="_blank" rel="noopener" style="color:#34d399;">` +
+                            `View on XDCScan ↗ ${d.tx_hash.slice(0,10)}...</a>`
+                        );
+                        btnText.textContent = '✅ Already Claimed';
+                        setTimeout(() => window.loadXDCGDInfo && window.loadXDCGDInfo(), 5000);
+                        try { window.showClaimCelebration && window.showClaimCelebration({ networks: ['xdc'] }); } catch (_) {}
+                    } else {
+                        setAlert('alert-error', '❌ ' + (d.error || 'Claim failed'));
+                        btn.disabled = false;
+                        btnText.textContent = '🌟 Claim G$ on XDC';
+                    }
+                } catch(err) {
+                    setAlert('alert-error', '❌ ' + (err.message || 'Claim failed'));
+                    btn.disabled = false;
+                    btnText.textContent = '🌟 Claim G$ on XDC';
+                }
+                return;
+            }
+
+            // ── Browser wallet (MetaMask) flow ──
+            const ep = _getEthProvider();
+            if (!ep) {
+                noWallet.style.display = 'block';
+                setAlert('alert-error', '❌ No Web3 wallet detected. Please open this page in a Web3-compatible browser.');
+                btn.disabled = false;
+                return;
+            }
+            const walletName = _providerLabel(ep);
+            let claimSucceeded = false;
+
+            btnText.textContent = '⏳ Switching to XDC Network...';
+
+            try {
+                // Try to switch to XDC Network
+                const currentChain = await ep.request({ method: 'eth_chainId' });
+                if (parseInt(currentChain, 16) !== XDC_CHAIN_ID) {
+                    try {
+                        await ep.request({
+                            method: 'wallet_switchEthereumChain',
+                            params: [{ chainId: XDC_CHAIN_ID_HEX }]
+                        });
+                    } catch (switchErr) {
+                        if (switchErr.code === 4902) {
+                            // XDC not in MetaMask yet — try to auto-add
+                            try {
+                                await ep.request({
+                                    method: 'wallet_addEthereumChain',
+                                    params: [{
+                                        chainId: XDC_CHAIN_ID_HEX,
+                                        chainName: 'XDC Network',
+                                        rpcUrls: ['https://erpc.xinfin.network'],
+                                        nativeCurrency: { name: 'XDC', symbol: 'XDC', decimals: 18 },
+                                        blockExplorerUrls: ['https://xdcscan.com']
+                                    }]
+                                });
+                            } catch (addErr) {
+                                // Auto-add failed — show manual instructions
+                                setupInstr.style.display = 'block';
+                                setAlert('alert-error', `❌ Could not add XDC Network automatically in ${walletName}. Please follow the manual setup below.`);
+                                btnText.textContent = '🌟 Claim G$ on XDC';
+                                btn.disabled = false;
+                                return;
+                            }
+                        } else if (switchErr.code === 4001) {
+                            setAlert('alert-error', '❌ Tinanggihan ang network switch. Kailangan ng XDC Network para mag-claim.');
+                            btnText.textContent = '🌟 Claim G$ on XDC';
+                            btn.disabled = false;
+                            return;
+                        } else {
+                            setupInstr.style.display = 'block';
+                            setAlert('alert-error', `❌ Could not switch ${walletName} to XDC Network. Please try the manual setup below.`);
+                            btnText.textContent = '🌟 Claim G$ on XDC';
+                            btn.disabled = false;
+                            return;
+                        }
+                    }
+                }
+
+                const expectedWallet = WALLET ? normalizeAddr(WALLET).toLowerCase() : '';
+                let requiredBal = 0;
+                let currentBal = 0;
+                let gasRequestedFromFaucet = false;
+
+                btnText.textContent = '⏳ Checking XDC gas...';
+                const preGasRes = await fetch('/api/xdc/faucet/gas', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ wallet: WALLET, force_onchain: false })
+                });
+                const preGasData = await preGasRes.json();
+                requiredBal = Number(preGasData.required_gas_xdc || 0);
+                currentBal = Number(preGasData.balance_xdc || 0);
+
+                if (!preGasData.gas_ready) {
+                    gasRequestedFromFaucet = true;
+                    let topupData = preGasData;
+                    const preTerminalStatus = preGasData.terminal_status || preGasData.status || 'unknown';
+
+                    // /api/xdc/faucet/gas with force_onchain:false already attempts top-up in most cases.
+                    // Only retry with force_onchain:true when blocked by recent-refill cooldown.
+                    if (preTerminalStatus === 'recent_refill') {
+                        btnText.textContent = '⏳ Requesting XDC faucet top-up...';
+                        const topupRes = await fetch('/api/xdc/faucet/gas', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ wallet: WALLET, force_onchain: true })
+                        });
+                        topupData = await topupRes.json();
+                    }
+
+                    const terminalStatus = topupData.terminal_status || topupData.status || 'unknown';
+                    const cooldown = Number(topupData.recent_refill_cooldown_seconds || 0);
+                    currentBal = Number(topupData.balance_xdc || currentBal || 0);
+                    requiredBal = Number(topupData.required_gas_xdc || requiredBal || 0);
+
+                    if (!topupData.gas_ready) {
+                        const gasHint = (
+                            Number.isFinite(currentBal) &&
+                            Number.isFinite(requiredBal) &&
+                            requiredBal > 0
+                        )
+                            ? ` Current: ${currentBal.toFixed(6)} XDC, required: ${requiredBal.toFixed(6)} XDC.`
+                            : '';
+
+                        if (terminalStatus === 'recent_refill') {
+                            throw new Error(`Gas refill cooldown active (${cooldown}s). Please retry after cooldown.`);
+                        }
+                        if (terminalStatus === 'not_configured') {
+                            throw new Error(
+                                `XDC faucet is not configured right now. Please top up your wallet manually and retry.${gasHint}`
+                            );
+                        }
+                        if (terminalStatus === 'onchain_failed') {
+                            throw new Error(
+                                `${topupData.error || topupData.reason || 'XDC faucet top-up failed.'}` +
+                                `${gasHint} Retry after a few seconds. If unchanged, manual top-up is needed.`
+                            );
+                        }
+                        throw new Error(
+                            `${topupData.error || topupData.reason || 'Insufficient XDC gas.'}` +
+                            `${gasHint} Please top up your wallet and retry.`
+                        );
+                    }
+                }
+
+                if (gasRequestedFromFaucet) {
+                    btnText.textContent = '🔄 Refresh then claim again';
+                    setAlert(
+                        'alert-success',
+                        '⛽ <strong>Gas request sent from GoodDollar faucet.</strong><br>' +
+                        'This step only tops up gas (hindi pa ito ang G$ claim).<br>' +
+                        'Please refresh this page, then click <strong>Claim G$ on XDC</strong> again.'
+                    );
+                    return;
+                }
+
+                btnText.textContent = '⏳ Confirming wallet balance...';
+                const connectedAccounts = await ep.request({ method: 'eth_requestAccounts' });
+                if (!Array.isArray(connectedAccounts) || connectedAccounts.length === 0) {
+                    throw new Error('Wallet not connected. Please connect your wallet first, then retry.');
+                }
+                const connectedAddress = normalizeAddr(String(connectedAccounts[0] || '')).toLowerCase();
+                if (expectedWallet && connectedAddress && connectedAddress !== expectedWallet) {
+                    throw new Error(
+                        `Connected wallet mismatch. Connected: ${connectedAddress}, expected: ${expectedWallet}.`
+                    );
+                }
+
+                const walletBalanceHex = await ep.request({
+                    method: 'eth_getBalance',
+                    params: [connectedAccounts[0], 'latest']
+                });
+                const walletBalance = Number(ethers.formatEther(walletBalanceHex || '0x0'));
+                if (Number.isFinite(requiredBal) && requiredBal > 0 && walletBalance < requiredBal) {
+                    throw new Error(
+                        `XDC balance still insufficient after faucet attempt. Current: ${walletBalance.toFixed(6)} XDC, required: ${requiredBal.toFixed(6)} XDC.`
+                    );
+                }
+
+                btnText.textContent = `⏳ Confirm in ${walletName}...`;
+                const from = connectedAccounts[0];
+
+                // Call UBIScheme.claim() — function selector: keccak256("claim()") = 0x4e71d92d
+                const txHash = await ep.request({
+                    method: 'eth_sendTransaction',
+                    params: [{
+                        from: from,
+                        to: '0x22867567E2D80f2049200E25C6F31CB6Ec2F0faf',
+                        data: '0x4e71d92d',
+                        chainId: XDC_CHAIN_ID_HEX,
+                    }]
+                });
+
+                setAlert('alert-success',
+                    `✅ <strong>G$ claimed on XDC Network!</strong><br>
+                    <a class="tx-link" href="https://xdcscan.com/tx/${txHash}" target="_blank" rel="noopener">
+                        View on XDCScan ↗ ${txHash.substring(0,10)}...${txHash.slice(-8)}
+                    </a>`
+                );
+
+                // Disable button and start countdown timer
+                btn.disabled = true;
+                btn.style.opacity = '0.5';
+                btnText.textContent = '✅ Already Claimed';
+                claimSucceeded = true;
+                startXDCCountdown();
+
+                setTimeout(() => { loadGDInfo(); loadBalances(); }, 4000);
+                try { window.showClaimCelebration && window.showClaimCelebration({ networks: ['xdc'] }); } catch (_) {}
+
+            } catch (err) {
+                let msg = err.message || 'Transaction failed';
+                if (err.code === 4001) msg = `Tinanggihan mo ang transaction sa ${walletName}.`;
+                setAlert('alert-error', '❌ ' + msg);
+            } finally {
+                if (!claimSucceeded) {
+                    btnText.textContent = '🌟 Claim G$ on XDC';
+                    btn.disabled = false;
+                }
+            }
+        }
+
+        // ── Network Switcher ───────────────────────────────────
+        async function switchToCelo() {
+            const btn = document.getElementById('switchToCeloBtn');
+            const status = document.getElementById('netSwitchStatus');
+
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Switching...';
+            status.textContent = '';
+
+            // Server-signing users don't need MetaMask — just redirect to Celo wallet
+            if (useServerSigning) {
+                status.textContent = '✅ Redirecting to Celo Wallet...';
+                setTimeout(() => { window.location.href = '/wallet'; }, 800);
+                return;
+            }
+
+            const ep = _getEthProvider();
+            if (!ep) {
+                status.textContent = '⚠️ No Web3 wallet detected. Please open this page in a Web3-compatible browser.';
+                btn.disabled = false;
+                btn.innerHTML = '<span class="net-dot celo"></span> Celo Network';
+                return;
+            }
+
+            try {
+                try {
+                    await ep.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: '0xa4ec' }]  // Celo mainnet = 42220
+                    });
+                } catch (switchErr) {
+                    if (switchErr.code === 4902) {
+                        await ep.request({
+                            method: 'wallet_addEthereumChain',
+                            params: [{
+                                chainId: '0xa4ec',
+                                chainName: 'Celo Mainnet',
+                                rpcUrls: ['https://forno.celo.org'],
+                                nativeCurrency: { name: 'CELO', symbol: 'CELO', decimals: 18 },
+                                blockExplorerUrls: ['https://celoscan.io']
+                            }]
+                        });
+                    } else if (switchErr.code === 4001) {
+                        status.textContent = '❌ Tinanggihan ang network switch.';
+                        btn.disabled = false;
+                        btn.innerHTML = '<span class="net-dot celo" style="background:#35a869;"></span> Celo Network';
+                        return;
+                    } else {
+                        throw switchErr;
+                    }
+                }
+                status.textContent = '✅ Switched! Redirecting to Celo Wallet...';
+                setTimeout(() => { window.location.href = '/wallet'; }, 1200);
+            } catch (err) {
+                status.textContent = '❌ ' + (err.message || 'Could not switch network.');
+                btn.disabled = false;
+                btn.innerHTML = '<span class="net-dot celo" style="background:#35a869;"></span> Celo Network';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await autoSwitchToXDCIfOnCelo();
+            // Bridge UI moved to /swap → Bridge → "XDC → Celo"; the legacy
+            // bridge JS in this file is now unreachable from the DOM (the
+            // card was replaced by a banner). Calls below would just
+            // no-op anyway, but skipping them avoids a stray network
+            // request on every /xdc-wallet page load.
+            loadBalances();
+            loadHistory();
+            loadGDInfo();
+        });
+    </script>
+</body>
+</html>

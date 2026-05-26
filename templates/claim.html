@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claim G$ - GoodMarket</title>
+    <meta name="theme-color" content="#7c3aed">
+    <link rel="manifest" href="/static/manifest.json?v={{ ASSET_VERSION }}">
+    <link rel="icon" type="image/png" href="/static/icons/goodmarket-icon.png?v={{ ASSET_VERSION }}">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #0B0F2A 0%, #130D35 50%, #1A103D 100%);
+            color: #e2e8f0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+        }
+        .claim-card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.09);
+            border-radius: 28px;
+            padding: 2.5rem 2rem;
+            max-width: 420px;
+            width: 100%;
+            backdrop-filter: blur(8px);
+            text-align: center;
+        }
+        .logo-link { font-size: 1.1rem; font-weight: 800; color: #7c3aed; text-decoration: none; margin-bottom: 1.75rem; display: block; }
+        .gift-icon { font-size: 3.5rem; margin-bottom: 1rem; display: block; }
+        .card-title { font-size: 1.6rem; font-weight: 800; color: #fff; letter-spacing: -0.5px; margin-bottom: 0.4rem; }
+        .card-subtitle { color: rgba(255,255,255,0.5); font-size: 0.9rem; margin-bottom: 2rem; }
+        .amount-display {
+            background: linear-gradient(135deg, rgba(124,58,237,0.2), rgba(168,85,247,0.15));
+            border: 1px solid rgba(124,58,237,0.35);
+            border-radius: 18px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .amount-label { font-size: 0.7rem; font-weight: 700; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.4rem; }
+        .amount-value { font-size: 2.2rem; font-weight: 800; color: #fff; letter-spacing: -1px; }
+        .amount-token { font-size: 1rem; color: #a78bfa; font-weight: 600; }
+        .loading-amount { font-size: 0.9rem; color: rgba(255,255,255,0.4); }
+        .claim-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #7c3aed, #5b21b6);
+            border: none; border-radius: 16px; color: #fff;
+            font-size: 1rem; font-weight: 700; padding: 1rem;
+            cursor: pointer; font-family: inherit; transition: all 0.2s;
+        }
+        .claim-btn:hover:not(:disabled) { background: linear-gradient(135deg, #6d28d9, #4c1d95); transform: translateY(-1px); box-shadow: 0 8px 25px rgba(124,58,237,0.35); }
+        .claim-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .alert { border-radius: 12px; padding: 0.85rem 1rem; font-size: 0.85rem; font-weight: 500; margin-top: 1rem; display: none; text-align: left; }
+        .alert.show { display: block; }
+        .alert-error { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; }
+        .alert-success { background: rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.3); color: #86efac; }
+        .alert-info { background: rgba(59,130,246,0.12); border: 1px solid rgba(59,130,246,0.3); color: #93c5fd; }
+        .alert-warning { background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.25); color: #fde68a; }
+        .spinner-inline { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .footer-note { font-size: 0.75rem; color: rgba(255,255,255,0.3); margin-top: 1.5rem; line-height: 1.5; }
+        .footer-note a { color: #a78bfa; text-decoration: none; }
+        .footer-note a:hover { text-decoration: underline; }
+        .error-state { display: none; }
+        .error-state.show { display: block; }
+    </style>
+</head>
+<body>
+    <div class="claim-card">
+        <a href="/" class="logo-link">💰 GoodMarket</a>
+
+        <span class="gift-icon">🎁</span>
+        <h1 class="card-title">You have G$!</h1>
+        <p class="card-subtitle">Someone sent you GoodDollar tokens via a payment link.</p>
+
+        <div class="amount-display" id="amountDisplay">
+            <div class="amount-label">Amount to claim</div>
+            <div class="loading-amount"><span class="spinner-inline"></span> Loading...</div>
+        </div>
+
+        <div class="error-state" id="errorState">
+            <div class="alert alert-warning show" id="errorMsg"></div>
+        </div>
+
+        <button class="claim-btn" id="claimBtn" onclick="claimPayment()" disabled>
+            <span class="spinner-inline"></span> Loading...
+        </button>
+
+        <div class="alert" id="claimAlert"></div>
+
+        <p class="footer-note">
+            Powered by the GoodDollar OneTimePayments contract on Celo.<br>
+            <a href="/dashboard">Go to GoodMarket Dashboard →</a>
+        </p>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js"
+            integrity="sha384-6Zl0Pc8zjSz8KvmNeXRvUQgY4ryFb+BwDvKCmLYcBME0joAaru491tQgi9B7zsMM"
+            crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <!--
+        Shared "gas coverage" banner shown after a successful GoodDollar Celo
+        gas top-up. Surfaces the 3-day coverage / 48h cooldown reminder so
+        users on this claim-link page know not to drain the refilled CELO.
+    -->
+    <script src="/static/js/gas-coverage-banner.js?v={{ ASSET_VERSION }}"></script>
+    <script>
+        const LOGIN_METHOD = "{{ login_method | default('walletconnect') }}";
+        const SESSION_WALLET = "{{ wallet | default('') }}";
+        const CELO_CHAIN_ID = 42220;
+        const CELO_RPC = "https://forno.celo.org";
+        const GD_ADDRESS = "0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A";
+        const OTP_ADDRESS = "0xB27D247f5C2a61D2Cb6b6E67FEE51d839447e97d";
+        const GD_DECIMALS = 18;
+        const GD_DISPLAY_DECIMALS = 2;
+
+        const OTP_ABI = [
+            "function payments(address) view returns (bool hasPayment, uint256 paymentAmount, address paymentSender)",
+            "function withdraw(address paymentId, bytes memory signature) public",
+            "function hasPayment(address paymentId) view returns (bool)"
+        ];
+
+        let paymentPrivKey = null;
+        let paymentWallet = null;
+        let paymentAmount = null;
+        window.__announced6963Providers = window.__announced6963Providers || [];
+
+        (function initEip6963Discovery() {
+            try {
+                window.addEventListener("eip6963:announceProvider", (event) => {
+                    const detail = event && event.detail;
+                    if (!detail || !detail.provider) return;
+                    const uuid = detail.info && detail.info.uuid;
+                    const already = window.__announced6963Providers.find((d) =>
+                        (d.info && d.info.uuid && uuid && d.info.uuid === uuid) ||
+                        d.provider === detail.provider
+                    );
+                    if (!already) window.__announced6963Providers.push(detail);
+                });
+
+                window.dispatchEvent(new Event("eip6963:requestProvider"));
+                let retries = 0;
+                const timer = setInterval(() => {
+                    try { window.dispatchEvent(new Event("eip6963:requestProvider")); } catch (_) {}
+                    if (++retries >= 6) clearInterval(timer);
+                }, 200);
+                window.addEventListener("ethereum#initialized", () => {
+                    try { window.dispatchEvent(new Event("eip6963:requestProvider")); } catch (_) {}
+                }, { once: true });
+            } catch (_) {}
+        })();
+
+        window.addEventListener("load", initClaim);
+
+        function _eip6963Providers() {
+            return Array.isArray(window.__announced6963Providers)
+                ? window.__announced6963Providers.slice()
+                : [];
+        }
+        function _isTrustWalletMobileContext() {
+            const ua = (navigator.userAgent || "").toLowerCase();
+            const uaTrust = ua.includes("trust") || ua.includes("trustwallet");
+            const touchMobile = /android|iphone|ipad|ipod/i.test(ua);
+            const hasTrustInjection = !!(
+                window.trustwallet ||
+                window.trustWallet ||
+                (window.ethereum && (window.ethereum.isTrust || window.ethereum.isTrustWallet))
+            );
+            return (uaTrust || hasTrustInjection) && touchMobile;
+        }
+
+        function _coerceToRequestProvider(candidate) {
+            if (!candidate) return null;
+            if (typeof candidate.request === "function") return candidate;
+            if (candidate.ethereum && typeof candidate.ethereum.request === "function") return candidate.ethereum;
+            if (candidate.provider && typeof candidate.provider.request === "function") return candidate.provider;
+
+            const sendAsync = typeof candidate.sendAsync === "function"
+                ? candidate.sendAsync.bind(candidate)
+                : (typeof candidate.send === "function" ? candidate.send.bind(candidate) : null);
+            if (!sendAsync) return null;
+
+            candidate.request = ({ method, params }) => new Promise((resolve, reject) => {
+                const payload = {
+                    jsonrpc: "2.0",
+                    id: Date.now(),
+                    method,
+                    params: Array.isArray(params) ? params : []
+                };
+                sendAsync(payload, (err, res) => {
+                    if (err) return reject(err);
+                    if (res && res.error) return reject(res.error);
+                    resolve(res && Object.prototype.hasOwnProperty.call(res, "result") ? res.result : res);
+                });
+            });
+            return candidate;
+        }
+
+        function _collectInjectedProviders() {
+            const out = [];
+            const push = (p) => {
+                const provider = _coerceToRequestProvider(p);
+                if (provider && !out.includes(provider)) out.push(provider);
+            };
+            const pushTrustWalletInjection = () => {
+                const trustRoot = window.trustwallet || window.trustWallet || null;
+                if (!trustRoot) return;
+                // Trust Wallet can expose both root + nested ethereum objects.
+                // Keep only one canonical object to avoid duplicate candidates.
+                const canonical = (trustRoot.ethereum && typeof trustRoot.ethereum.request === "function")
+                    ? trustRoot.ethereum
+                    : trustRoot;
+                push(canonical);
+            };
+            if (window.ethereum) {
+                if (Array.isArray(window.ethereum.providers)) window.ethereum.providers.forEach(push);
+                push(window.ethereum);
+            }
+            pushTrustWalletInjection();
+            for (const d of _eip6963Providers()) push(d.provider);
+            return out;
+        }
+
+        function _pickProviderFromCandidates(candidates) {
+            if (!candidates || !candidates.length) return null;
+
+            const miniPay = candidates.find((p) => p && p.isMiniPay);
+            if (miniPay) return miniPay;
+
+            const trustByFlag = candidates.find((p) => p && (p.isTrust || p.isTrustWallet));
+            if (trustByFlag) return trustByFlag;
+
+            const trustBy6963 = _eip6963Providers().find((d) => {
+                const info = d.info || {};
+                const rdns = String(info.rdns || "").toLowerCase();
+                const name = String(info.name || "").toLowerCase();
+                return rdns.includes("trustwallet") || name.includes("trust");
+            });
+            if (trustBy6963 && trustBy6963.provider) {
+                const provider = _coerceToRequestProvider(trustBy6963.provider);
+                if (provider) return provider;
+            }
+
+            if (window.ethereum && Array.isArray(window.ethereum.providers) && window.ethereum.providers.length) {
+                const mm = window.ethereum.providers.find((p) => p.isMetaMask && !p.isBraveWallet);
+                if (mm) return mm;
+                return window.ethereum.providers[0];
+            }
+
+            if (window.ethereum) return window.ethereum;
+            return candidates[0];
+        }
+
+        function _getEthProvider() {
+            try { window.dispatchEvent(new Event("eip6963:requestProvider")); } catch (_) {}
+            const candidates = _collectInjectedProviders();
+            if (!candidates.length) return null;
+            return _pickProviderFromCandidates(candidates);
+        }
+
+        async function _awaitEthProvider(timeoutMs) {
+            const trustBudget = _isTrustWalletMobileContext() ? 2600 : 800;
+            const budget = typeof timeoutMs === "number" ? timeoutMs : trustBudget;
+            const start = Date.now();
+            let found = _getEthProvider();
+            if (found) return found;
+            while (Date.now() - start < budget) {
+                try { window.dispatchEvent(new Event("eip6963:requestProvider")); } catch (_) {}
+                await new Promise((r) => setTimeout(r, 120));
+                found = _getEthProvider();
+                if (found) return found;
+            }
+            return null;
+        }
+        if (_isTrustWalletMobileContext()) {
+            window.addEventListener("pageshow", () => {
+                try { window.dispatchEvent(new Event("eip6963:requestProvider")); } catch (_) {}
+            });
+            document.addEventListener("visibilitychange", () => {
+                if (document.visibilityState !== "visible") return;
+                try { window.dispatchEvent(new Event("eip6963:requestProvider")); } catch (_) {}
+            });
+        }
+
+        async function initClaim() {
+            const hash = window.location.hash.slice(1); // remove leading #
+            if (!hash || hash.length < 60) {
+                showError("❌ Invalid payment link. The link may be broken or already claimed.");
+                return;
+            }
+
+            try {
+                paymentPrivKey = hash.startsWith("0x") ? hash : "0x" + hash;
+                paymentWallet = new ethers.Wallet(paymentPrivKey);
+
+                const provider = new ethers.JsonRpcProvider(CELO_RPC);
+                const otp = new ethers.Contract(OTP_ADDRESS, OTP_ABI, provider);
+                const payment = await otp.payments(paymentWallet.address);
+
+                if (!payment.hasPayment) {
+                    showError("❌ This payment link has already been claimed or cancelled.");
+                    return;
+                }
+
+                paymentAmount = payment.paymentAmount;
+                const humanAmount = parseFloat(ethers.formatUnits(paymentAmount, GD_DECIMALS)).toFixed(GD_DISPLAY_DECIMALS);
+
+                document.getElementById("amountDisplay").innerHTML = `
+                    <div class="amount-label">Amount to claim</div>
+                    <div class="amount-value">${humanAmount} <span class="amount-token">G$</span></div>
+                `;
+
+                const btn = document.getElementById("claimBtn");
+                btn.disabled = false;
+                btn.textContent = `Claim ${humanAmount} G$`;
+
+            } catch(e) {
+                console.error(e);
+                showError("❌ Could not load payment details. Please check the link or try again.");
+            }
+        }
+
+        function showError(msg) {
+            document.getElementById("errorMsg").textContent = msg;
+            document.getElementById("errorState").classList.add("show");
+            document.getElementById("amountDisplay").innerHTML = `<div class="amount-label">Amount to claim</div><div class="loading-amount" style="color:#fca5a5">Unavailable</div>`;
+            const btn = document.getElementById("claimBtn");
+            btn.disabled = true;
+            btn.textContent = "Unavailable";
+        }
+
+        function showAlert(type, html) {
+            const el = document.getElementById("claimAlert");
+            el.className = `alert ${type} show`;
+            el.innerHTML = html;
+        }
+        function clearAlert() {
+            const el = document.getElementById("claimAlert");
+            el.className = "alert";
+            el.innerHTML = "";
+        }
+
+        async function _safeFetchJson(url, opts) {
+            const res = await fetch(url, opts);
+            let body = {};
+            try { body = await res.json(); } catch (_) {}
+            if (!res.ok) {
+                throw new Error(body.error || `HTTP ${res.status}`);
+            }
+            return body;
+        }
+
+        async function ensureGasReadyForClaim(walletAddress) {
+            const correlationId = `claim-link-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+            const statusData = await _safeFetchJson("/api/faucet/status", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "X-Correlation-ID": correlationId },
+                body: JSON.stringify({ wallet: walletAddress, correlation_id: correlationId })
+            });
+            if (statusData.gas_ready) {
+                return { gasReady: true, source: "wallet_balance" };
+            }
+
+            const gasData = await _safeFetchJson("/api/faucet/gas", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "X-Correlation-ID": correlationId },
+                body: JSON.stringify({ wallet: walletAddress, correlation_id: correlationId, force_onchain: false })
+            });
+
+            if (window.GMGasCoverageBanner && gasData && gasData.show_gas_coverage_message) {
+                try { window.GMGasCoverageBanner.maybeShow(gasData, { wallet: walletAddress }); } catch (_) {}
+            }
+
+            if (gasData.gas_ready) {
+                return { gasReady: true, source: gasData.topup_source || "faucet" };
+            }
+
+            const terminal = gasData.terminal_status || gasData.status;
+            if (terminal === "gooddollar_cooldown") {
+                if (window.GMGasCoverageBanner) {
+                    try {
+                        window.GMGasCoverageBanner.maybeShow(
+                            { ...gasData, show_gas_coverage_message: true },
+                            { wallet: walletAddress }
+                        );
+                    } catch (_) {}
+                }
+                throw new Error(gasData.reason || gasData.error ||
+                    "GoodDollar already provided gas to this wallet — please wait ~48h before requesting again.");
+            }
+            if (terminal === "recent_refill") {
+                const cooldown = Number(gasData.recent_refill_cooldown_seconds || 0);
+                throw new Error(`Gas refill cooldown active (${cooldown}s remaining).`);
+            }
+            throw new Error(gasData.error || gasData.reason || "Gas top-up failed.");
+        }
+
+        function isServerSigningLoginMethod() {
+            return false;
+        }
+
+        async function claimPayment() {
+            if (!paymentWallet || !paymentAmount) return;
+            clearAlert();
+
+            const btn = document.getElementById("claimBtn");
+            try {
+                const ethers = window.ethers;
+                const iface = new ethers.Interface(OTP_ABI);
+                btn.disabled = true;
+                let receiverAddr = "";
+                let txHash = "";
+                let otpCheck = null;
+                let signer = null;
+
+                if (isServerSigningLoginMethod()) {
+                    if (!SESSION_WALLET || SESSION_WALLET.length < 42) {
+                        throw new Error("No active logged-in wallet found. Please sign in first, then try again.");
+                    }
+                    receiverAddr = SESSION_WALLET;
+                    const provider = new ethers.JsonRpcProvider(CELO_RPC);
+                    otpCheck = new ethers.Contract(OTP_ADDRESS, OTP_ABI, provider);
+                } else {
+                    const injectedProvider = await _awaitEthProvider(1200);
+                    if (!injectedProvider) {
+                        showAlert("alert-error", "⚠️ No Web3 wallet detected. Please open this page in MetaMask, MiniPay, Trust Wallet dApp browser, or another Celo-compatible wallet.");
+                        return;
+                    }
+
+                    btn.innerHTML = '<span class="spinner-inline"></span> Connecting wallet...';
+                    await injectedProvider.request({ method: "eth_requestAccounts" });
+
+                    const chainIdHex = await injectedProvider.request({ method: "eth_chainId" });
+                    if (parseInt(chainIdHex, 16) !== CELO_CHAIN_ID) {
+                        try {
+                            await injectedProvider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x" + CELO_CHAIN_ID.toString(16) }] });
+                        } catch {
+                            await injectedProvider.request({ method: "wallet_addEthereumChain", params: [{ chainId: "0x" + CELO_CHAIN_ID.toString(16), chainName: "Celo Mainnet", nativeCurrency: { name: "CELO", symbol: "CELO", decimals: 18 }, rpcUrls: ["https://forno.celo.org"], blockExplorerUrls: ["https://celoscan.io"] }] });
+                        }
+                    }
+
+                    const provider = new ethers.BrowserProvider(injectedProvider);
+                    signer = await provider.getSigner();
+                    receiverAddr = await signer.getAddress();
+                    otpCheck = new ethers.Contract(OTP_ADDRESS, OTP_ABI, provider);
+
+                    btn.innerHTML = '<span class="spinner-inline"></span> Checking gas...';
+                    showAlert("alert-info", '<span class="spinner-inline"></span> Checking CELO gas and requesting faucet top-up if needed...');
+                    await ensureGasReadyForClaim(receiverAddr);
+                }
+
+                // Check payment still exists
+                btn.innerHTML = '<span class="spinner-inline"></span> Verifying payment...';
+                const stillActive = await otpCheck.hasPayment(paymentWallet.address);
+                if (!stillActive) {
+                    showAlert("alert-error", "❌ This payment has already been claimed or cancelled.");
+                    btn.disabled = true;
+                    btn.textContent = "Already Claimed";
+                    return;
+                }
+
+                // Sign the receiver's address with the payment private key
+                // signerOfAddress(msg.sender, signature) → recovers from keccak256(receiverAddr)
+                btn.innerHTML = '<span class="spinner-inline"></span> Signing...';
+                const messageHash = ethers.keccak256(ethers.solidityPacked(['address'], [receiverAddr]));
+                const signature = await paymentWallet.signMessage(ethers.getBytes(messageHash));
+
+                if (isServerSigningLoginMethod()) {
+                    btn.innerHTML = '<span class="spinner-inline"></span> Submitting claim...';
+                    showAlert("alert-info", '<span class="spinner-inline"></span> Signing and sending transaction via your secure wallet session...');
+                    const callData = iface.encodeFunctionData("withdraw", [paymentWallet.address, signature]);
+                    const signRes = await fetch("/api/server/sign-tx", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            to: OTP_ADDRESS,
+                            data: callData,
+                            value: "0x0",
+                            chain_id: CELO_CHAIN_ID,
+                            wait_receipt: true
+                        })
+                    });
+                    const signData = await signRes.json();
+                    if (!signRes.ok || !signData.success || !signData.tx_hash) {
+                        throw new Error(signData.error || "Server signing failed");
+                    }
+                    txHash = signData.tx_hash;
+                } else {
+                    // Call withdraw
+                    btn.innerHTML = '<span class="spinner-inline"></span> Confirm in wallet...';
+                    showAlert("alert-info", '<span class="spinner-inline"></span> Confirm the claim transaction in your wallet.');
+                    const otpSigner = new ethers.Contract(OTP_ADDRESS, OTP_ABI, signer);
+                    const tx = await otpSigner.withdraw(paymentWallet.address, signature);
+
+                    btn.innerHTML = '<span class="spinner-inline"></span> Waiting for confirmation...';
+                    showAlert("alert-info", '<span class="spinner-inline"></span> Transaction submitted. Waiting for confirmation on Celo...');
+                    const receipt = await tx.wait();
+                    txHash = receipt.hash;
+                }
+
+                const humanAmount = parseFloat(ethers.formatUnits(paymentAmount, GD_DECIMALS)).toFixed(GD_DISPLAY_DECIMALS);
+                const explorerUrl = `https://celoscan.io/tx/${txHash}`;
+                showAlert("alert-success",
+                    `✅ Successfully claimed <strong>${humanAmount} G$</strong> to your wallet! ` +
+                    `<a href="${explorerUrl}" target="_blank" style="color:#86efac;text-decoration:underline;">View on CeloScan ↗</a>`
+                );
+                btn.disabled = true;
+                btn.textContent = "✅ Claimed!";
+
+                // Clear hash so the link can't be reused accidentally
+                history.replaceState(null, "", window.location.pathname);
+
+            } catch(err) {
+                console.error(err);
+                const msg = err?.reason || err?.shortMessage || err?.message || "Unknown error";
+                if (msg.includes("user rejected") || msg.includes("ACTION_REJECTED")) {
+                    showAlert("alert-error", "❌ Transaction cancelled.");
+                } else {
+                    showAlert("alert-error", `❌ Claim failed: ${msg.substring(0, 150)}`);
+                }
+                const humanAmount = paymentAmount ? parseFloat(ethers.formatUnits(paymentAmount, GD_DECIMALS)).toFixed(GD_DISPLAY_DECIMALS) : "?";
+                btn.disabled = false;
+                btn.textContent = `Claim ${humanAmount} G$`;
+            }
+        }
+    </script>
+</body>
+</html>
